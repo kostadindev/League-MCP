@@ -489,6 +489,367 @@ async def get_summoner_by_rso_puuid(rso_puuid: str, region: str = "na1") -> str:
 # which is different from the API key authentication used by other endpoints.
 # This would require additional implementation for OAuth2 flow and is not included here.
 
+def format_champion_rotation(rotation_data: dict) -> str:
+    """Format champion rotation data into a readable string."""
+    if "error" in rotation_data:
+        return f"Error: {rotation_data['error']}"
+    
+    free_champions = rotation_data.get('freeChampionIds', [])
+    new_player_champions = rotation_data.get('freeChampionIdsForNewPlayers', [])
+    max_new_player_level = rotation_data.get('maxNewPlayerLevel', 'N/A')
+    
+    result = f"""
+CHAMPION ROTATION
+=================
+Max New Player Level: {max_new_player_level}
+
+Free Champions (All Players): {len(free_champions)} champions
+{', '.join(map(str, free_champions)) if free_champions else 'None'}
+
+Free Champions (New Players): {len(new_player_champions)} champions
+{', '.join(map(str, new_player_champions)) if new_player_champions else 'None'}
+"""
+    return result
+
+def format_clash_player(player_data: list) -> str:
+    """Format clash player data into a readable string."""
+    if not player_data:
+        return "No active Clash registrations found for this player."
+    
+    if isinstance(player_data, dict) and "error" in player_data:
+        return f"Error: {player_data['error']}"
+    
+    result = f"""
+CLASH PLAYER REGISTRATIONS
+==========================
+Active Registrations: {len(player_data)}
+
+"""
+    
+    for i, registration in enumerate(player_data, 1):
+        summoner_id = registration.get('summonerId', 'N/A')
+        puuid = registration.get('puuid', 'N/A')
+        team_id = registration.get('teamId', 'N/A')
+        position = registration.get('position', 'N/A')
+        role = registration.get('role', 'N/A')
+        
+        result += f"""
+Registration #{i}:
+  Summoner ID: {summoner_id}
+  PUUID: {puuid}
+  Team ID: {team_id}
+  Position: {position}
+  Role: {role}
+"""
+    
+    return result
+
+def format_clash_team(team_data: dict) -> str:
+    """Format clash team data into a readable string."""
+    if "error" in team_data:
+        return f"Error: {team_data['error']}"
+    
+    team_id = team_data.get('id', 'N/A')
+    tournament_id = team_data.get('tournamentId', 'N/A')
+    name = team_data.get('name', 'N/A')
+    icon_id = team_data.get('iconId', 'N/A')
+    tier = team_data.get('tier', 'N/A')
+    captain = team_data.get('captain', 'N/A')
+    abbreviation = team_data.get('abbreviation', 'N/A')
+    players = team_data.get('players', [])
+    
+    result = f"""
+CLASH TEAM INFORMATION
+======================
+Team ID: {team_id}
+Tournament ID: {tournament_id}
+Name: {name}
+Abbreviation: {abbreviation}
+Icon ID: {icon_id}
+Tier: {tier}
+Captain: {captain}
+
+Team Members ({len(players)}):
+"""
+    
+    for i, player in enumerate(players, 1):
+        summoner_id = player.get('summonerId', 'N/A')
+        position = player.get('position', 'N/A')
+        role = player.get('role', 'N/A')
+        
+        result += f"""
+  Player #{i}:
+    Summoner ID: {summoner_id}
+    Position: {position}
+    Role: {role}
+"""
+    
+    return result
+
+def format_clash_tournaments(tournaments_data: list) -> str:
+    """Format clash tournaments data into a readable string."""
+    if not tournaments_data:
+        return "No active or upcoming tournaments found."
+    
+    if isinstance(tournaments_data, dict) and "error" in tournaments_data:
+        return f"Error: {tournaments_data['error']}"
+    
+    result = f"""
+CLASH TOURNAMENTS
+=================
+Active/Upcoming Tournaments: {len(tournaments_data)}
+
+"""
+    
+    import datetime
+    
+    for i, tournament in enumerate(tournaments_data, 1):
+        tournament_id = tournament.get('id', 'N/A')
+        theme_id = tournament.get('themeId', 'N/A')
+        name_key = tournament.get('nameKey', 'N/A')
+        name_key_secondary = tournament.get('nameKeySecondary', 'N/A')
+        schedule = tournament.get('schedule', [])
+        
+        result += f"""
+Tournament #{i}:
+  ID: {tournament_id}
+  Theme ID: {theme_id}
+  Name Key: {name_key}
+  Secondary Name Key: {name_key_secondary}
+  Phases: {len(schedule)}
+"""
+        
+        for j, phase in enumerate(schedule, 1):
+            phase_id = phase.get('id', 'N/A')
+            registration_time = phase.get('registrationTime', 0)
+            start_time = phase.get('startTime', 0)
+            cancelled = phase.get('cancelled', False)
+            
+            # Convert timestamps
+            try:
+                reg_time = datetime.datetime.fromtimestamp(registration_time / 1000).strftime('%Y-%m-%d %H:%M:%S UTC') if registration_time else 'N/A'
+                start_time_str = datetime.datetime.fromtimestamp(start_time / 1000).strftime('%Y-%m-%d %H:%M:%S UTC') if start_time else 'N/A'
+            except (ValueError, TypeError):
+                reg_time = f"Epoch: {registration_time}"
+                start_time_str = f"Epoch: {start_time}"
+            
+            status = "CANCELLED" if cancelled else "ACTIVE"
+            
+            result += f"""
+    Phase #{j}:
+      ID: {phase_id}
+      Registration: {reg_time}
+      Start Time: {start_time_str}
+      Status: {status}
+"""
+    
+    return result
+
+def format_clash_tournament(tournament_data: dict) -> str:
+    """Format single clash tournament data into a readable string."""
+    if "error" in tournament_data:
+        return f"Error: {tournament_data['error']}"
+    
+    tournament_id = tournament_data.get('id', 'N/A')
+    theme_id = tournament_data.get('themeId', 'N/A')
+    name_key = tournament_data.get('nameKey', 'N/A')
+    name_key_secondary = tournament_data.get('nameKeySecondary', 'N/A')
+    schedule = tournament_data.get('schedule', [])
+    
+    result = f"""
+CLASH TOURNAMENT DETAILS
+========================
+Tournament ID: {tournament_id}
+Theme ID: {theme_id}
+Name Key: {name_key}
+Secondary Name Key: {name_key_secondary}
+Total Phases: {len(schedule)}
+
+TOURNAMENT SCHEDULE:
+"""
+    
+    import datetime
+    
+    for i, phase in enumerate(schedule, 1):
+        phase_id = phase.get('id', 'N/A')
+        registration_time = phase.get('registrationTime', 0)
+        start_time = phase.get('startTime', 0)
+        cancelled = phase.get('cancelled', False)
+        
+        # Convert timestamps
+        try:
+            reg_time = datetime.datetime.fromtimestamp(registration_time / 1000).strftime('%Y-%m-%d %H:%M:%S UTC') if registration_time else 'N/A'
+            start_time_str = datetime.datetime.fromtimestamp(start_time / 1000).strftime('%Y-%m-%d %H:%M:%S UTC') if start_time else 'N/A'
+        except (ValueError, TypeError):
+            reg_time = f"Epoch: {registration_time}"
+            start_time_str = f"Epoch: {start_time}"
+        
+        status = "CANCELLED" if cancelled else "ACTIVE"
+        
+        result += f"""
+Phase #{i}:
+  Phase ID: {phase_id}
+  Registration Opens: {reg_time}
+  Tournament Start: {start_time_str}
+  Status: {status}
+"""
+    
+    return result
+
+@mcp.tool()
+async def get_champion_rotation(region: str = "na1") -> str:
+    """Get current champion rotation (free-to-play champions).
+
+    Args:
+        region: LoL regional server (na1, euw1, eun1, kr, jp1, br1, la1, la2, oc1, tr1, ru)
+    """
+    logger.info(f"Tool called: get_champion_rotation(region={region})")
+    
+    if region not in LOL_REGIONS:
+        logger.warning(f"Invalid region specified: {region}")
+        return f"Error: Invalid region '{region}'. Valid regions: {', '.join(LOL_REGIONS)}"
+    
+    base_url = RIOT_API_BASE.format(region=region)
+    url = f"{base_url}/lol/platform/v3/champion-rotations"
+    data = await make_riot_request(url)
+    
+    if not data:
+        logger.warning("No data received from Riot API")
+        return "Unable to fetch champion rotation data."
+    
+    result = format_champion_rotation(data)
+    logger.info(f"get_champion_rotation completed successfully")
+    return result
+
+@mcp.tool()
+async def get_clash_players_by_puuid(puuid: str, region: str = "na1") -> str:
+    """Get active Clash players/registrations for a given PUUID.
+
+    Args:
+        puuid: Encrypted PUUID (78 characters) of the summoner
+        region: LoL regional server (na1, euw1, eun1, kr, jp1, br1, la1, la2, oc1, tr1, ru)
+    """
+    logger.info(f"Tool called: get_clash_players_by_puuid(puuid={puuid[:8]}..., region={region})")
+    
+    if region not in LOL_REGIONS:
+        logger.warning(f"Invalid region specified: {region}")
+        return f"Error: Invalid region '{region}'. Valid regions: {', '.join(LOL_REGIONS)}"
+    
+    base_url = RIOT_API_BASE.format(region=region)
+    url = f"{base_url}/lol/clash/v1/players/by-puuid/{puuid}"
+    data = await make_riot_request(url)
+    
+    if not data:
+        logger.warning("No data received from Riot API")
+        return "Unable to fetch Clash player data."
+    
+    result = format_clash_player(data)
+    logger.info(f"get_clash_players_by_puuid completed successfully")
+    return result
+
+@mcp.tool()
+async def get_clash_team(team_id: str, region: str = "na1") -> str:
+    """Get Clash team information by team ID.
+
+    Args:
+        team_id: The Clash team ID
+        region: LoL regional server (na1, euw1, eun1, kr, jp1, br1, la1, la2, oc1, tr1, ru)
+    """
+    logger.info(f"Tool called: get_clash_team(team_id={team_id}, region={region})")
+    
+    if region not in LOL_REGIONS:
+        logger.warning(f"Invalid region specified: {region}")
+        return f"Error: Invalid region '{region}'. Valid regions: {', '.join(LOL_REGIONS)}"
+    
+    base_url = RIOT_API_BASE.format(region=region)
+    url = f"{base_url}/lol/clash/v1/teams/{team_id}"
+    data = await make_riot_request(url)
+    
+    if not data:
+        logger.warning("No data received from Riot API")
+        return "Unable to fetch Clash team data."
+    
+    result = format_clash_team(data)
+    logger.info(f"get_clash_team completed successfully")
+    return result
+
+@mcp.tool()
+async def get_clash_tournaments(region: str = "na1") -> str:
+    """Get all active or upcoming Clash tournaments.
+
+    Args:
+        region: LoL regional server (na1, euw1, eun1, kr, jp1, br1, la1, la2, oc1, tr1, ru)
+    """
+    logger.info(f"Tool called: get_clash_tournaments(region={region})")
+    
+    if region not in LOL_REGIONS:
+        logger.warning(f"Invalid region specified: {region}")
+        return f"Error: Invalid region '{region}'. Valid regions: {', '.join(LOL_REGIONS)}"
+    
+    base_url = RIOT_API_BASE.format(region=region)
+    url = f"{base_url}/lol/clash/v1/tournaments"
+    data = await make_riot_request(url)
+    
+    if not data:
+        logger.warning("No data received from Riot API")
+        return "Unable to fetch Clash tournaments data."
+    
+    result = format_clash_tournaments(data)
+    logger.info(f"get_clash_tournaments completed successfully")
+    return result
+
+@mcp.tool()
+async def get_clash_tournament_by_team(team_id: str, region: str = "na1") -> str:
+    """Get Clash tournament information by team ID.
+
+    Args:
+        team_id: The Clash team ID
+        region: LoL regional server (na1, euw1, eun1, kr, jp1, br1, la1, la2, oc1, tr1, ru)
+    """
+    logger.info(f"Tool called: get_clash_tournament_by_team(team_id={team_id}, region={region})")
+    
+    if region not in LOL_REGIONS:
+        logger.warning(f"Invalid region specified: {region}")
+        return f"Error: Invalid region '{region}'. Valid regions: {', '.join(LOL_REGIONS)}"
+    
+    base_url = RIOT_API_BASE.format(region=region)
+    url = f"{base_url}/lol/clash/v1/tournaments/by-team/{team_id}"
+    data = await make_riot_request(url)
+    
+    if not data:
+        logger.warning("No data received from Riot API")
+        return "Unable to fetch Clash tournament data."
+    
+    result = format_clash_tournament(data)
+    logger.info(f"get_clash_tournament_by_team completed successfully")
+    return result
+
+@mcp.tool()
+async def get_clash_tournament_by_id(tournament_id: int, region: str = "na1") -> str:
+    """Get Clash tournament information by tournament ID.
+
+    Args:
+        tournament_id: The Clash tournament ID
+        region: LoL regional server (na1, euw1, eun1, kr, jp1, br1, la1, la2, oc1, tr1, ru)
+    """
+    logger.info(f"Tool called: get_clash_tournament_by_id(tournament_id={tournament_id}, region={region})")
+    
+    if region not in LOL_REGIONS:
+        logger.warning(f"Invalid region specified: {region}")
+        return f"Error: Invalid region '{region}'. Valid regions: {', '.join(LOL_REGIONS)}"
+    
+    base_url = RIOT_API_BASE.format(region=region)
+    url = f"{base_url}/lol/clash/v1/tournaments/{tournament_id}"
+    data = await make_riot_request(url)
+    
+    if not data:
+        logger.warning("No data received from Riot API")
+        return "Unable to fetch Clash tournament data."
+    
+    result = format_clash_tournament(data)
+    logger.info(f"get_clash_tournament_by_id completed successfully")
+    return result
+
 if __name__ == "__main__":
     logger.info("Starting League MCP Server...")
     # Initialize and run the server
