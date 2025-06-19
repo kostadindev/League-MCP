@@ -235,7 +235,31 @@ DO NOT generate Python code, print statements, or fake data. USE THE ACTUAL TOOL
             return "❌ **Not Connected** - Please connect to MCP server first"
         
         tool_names = [tool.name for tool in self.tools]
-        return f"✅ **Connected** - {len(self.tools)} tools available: {', '.join(tool_names[:5])}{'...' if len(tool_names) > 5 else ''}"
+        
+        # Group tools by category for better display
+        account_tools = [t for t in tool_names if 'account' in t]
+        match_tools = [t for t in tool_names if 'match' in t]
+        summoner_tools = [t for t in tool_names if 'summoner' in t]
+        league_tools = [t for t in tool_names if 'league' in t]
+        spectator_tools = [t for t in tool_names if 'active' in t or 'featured' in t]
+        other_tools = [t for t in tool_names if t not in account_tools + match_tools + summoner_tools + league_tools + spectator_tools]
+        
+        status = f"✅ **Connected** - {len(self.tools)} tools available:\n\n"
+        
+        if account_tools:
+            status += f"**Account Tools:** {', '.join(account_tools)}\n\n"
+        if summoner_tools:
+            status += f"**Summoner Tools:** {', '.join(summoner_tools)}\n\n"
+        if match_tools:
+            status += f"**Match Tools:** {', '.join(match_tools)}\n\n"
+        if league_tools:
+            status += f"**League Tools:** {', '.join(league_tools)}\n\n"
+        if spectator_tools:
+            status += f"**Spectator Tools:** {', '.join(spectator_tools)}\n\n"
+        if other_tools:
+            status += f"**Other Tools:** {', '.join(other_tools)}\n\n"
+            
+        return status.strip()
     
     def generate_response(self, history: List[ChatMessage], query: str) -> Generator[List[ChatMessage], None, None]:
         """Generate response with tool call logging"""
@@ -413,10 +437,10 @@ def create_gradio_interface(client: LeagueMCPClient):
                 Ask about players, matches, rankings, and more using natural language!
                 
                 ### 💡 Example Queries:
-                - "Look up Faker T1"
-                - "Get recent matches for Doublelift NA1"  
-                - "Show challenger league for ranked solo queue"
-                - "Is there a featured game in NA?"
+                - "show me detailed information about the first match of Sneaky#NA69"
+                - "Is Sneaky#NA69 in a game right now?"
+                - "What is the current rank of Sneaky#NA69?"
+                - "What champions did Sneaky#NA69 play in the last 3 matches?"
                 """)
                 
                 # Connection status
