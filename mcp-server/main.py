@@ -11,6 +11,12 @@ from primitives.tools.champion_tools import register_champion_tools
 from primitives.tools.clash_tools import register_clash_tools
 from primitives.tools.league_tools import register_league_tools
 from primitives.tools.status_tools import register_status_tools
+from primitives.tools.match_tools import register_match_tools
+from primitives.tools.challenges_tools import register_challenges_tools
+from primitives.tools.tournament_tools import register_tournament_tools
+from primitives.resources.data_dragon_resources import register_data_dragon_resources
+from primitives.resources.game_constants_resources import register_game_constants_resources
+from primitives.prompts.common_workflows import register_workflow_prompts
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -45,7 +51,25 @@ def main():
     logger.info("Registering Status API tools...")
     register_status_tools(mcp)
     
-    logger.info("All tools registered successfully!")
+    logger.info("Registering Match API tools...")
+    register_match_tools(mcp)
+    
+    logger.info("Registering Challenges API tools...")
+    register_challenges_tools(mcp)
+    
+    logger.info("Registering Tournament API tools...")
+    register_tournament_tools(mcp)
+    
+    logger.info("Registering Data Dragon resources...")
+    register_data_dragon_resources(mcp)
+    
+    logger.info("Registering Game Constants resources...")
+    register_game_constants_resources(mcp)
+    
+    logger.info("Registering workflow prompts...")
+    register_workflow_prompts(mcp)
+    
+    logger.info("All tools, resources, and prompts registered successfully!")
     
     # Run the server
     mcp.run(transport='stdio')
