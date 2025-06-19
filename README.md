@@ -14,14 +14,47 @@ A Model Context Protocol (MCP) server for League of Legends exposing all Riot Ga
 
 ## Quickstart
 
-1. Clone and install dependencies:
+1. Clone the repository:
    ```bash
    git clone <this-repo-url>
    cd League-MCP
-   # (pip install -r requirements in mcp-server and mcp-client as needed)
    ```
 
-2. Set environment variables in `.env` files:
+2. Install dependencies (choose one method):
+
+   **Option A: Using pip**
+   - In `mcp-server/`:
+     ```bash
+     cd mcp-server
+     pip install -r requirements.txt
+     cd ..
+     ```
+   - In `mcp-client/`:
+     ```bash
+     cd mcp-client
+     pip install -r requirements.txt
+     cd ..
+     ```
+
+   **Option B: Using uv (recommended for faster installs)**
+   - First install uv if you haven't already:
+     ```bash
+     pip install uv
+     ```
+   - In `mcp-server/`:
+     ```bash
+     cd mcp-server
+     uv sync
+     cd ..
+     ```
+   - In `mcp-client/`:
+     ```bash
+     cd mcp-client
+     uv pip install -r requirements.txt
+     cd ..
+     ```
+
+3. Set environment variables in `.env` files:
    - In `mcp-server/.env`:
      ```env
      RIOT_API_KEY=your_riot_api_key
@@ -31,21 +64,35 @@ A Model Context Protocol (MCP) server for League of Legends exposing all Riot Ga
      GOOGLE_API_KEY=your_google_api_key
      ```
 
-3. Run the MCP server:
+4. Run the MCP server independently:
+
+   **Using pip/python:**
    ```bash
    cd mcp-server
    python main.py
    ```
 
-4. Run the MCP client (from the project root):
+   **Using uv:**
+   ```bash
+   cd mcp-server
+   uv run main.py
+   ```
+
+4.5. Run the MCP client and the MCP server together (from the project root):
+
+   **Using pip/python:**
    ```bash
    python mcp-client/client.py mcp-server/main.py
+   ```
+
+   **Using uv:**
+   ```bash
+   uv run mcp-client/client.py mcp-server/main.py
    ```
 
 - The client launches a Gradio web UI. Example queries:
   - What is the current rank of Sneaky#NA69?
   - Show me ddragon://champions
-  - Use find_player_stats for Faker#T1
 
 ## Project Structure
 
