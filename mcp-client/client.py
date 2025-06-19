@@ -461,7 +461,7 @@ def create_gradio_interface(client: LeagueMCPClient):
     
     with gr.Blocks(
         title="League of Legends MCP Client",
-        theme=gr.themes.Soft(),
+        theme=gr.themes.Default(),
         css="""
         .gradio-container {
             min-height: 100vh !important;
@@ -489,10 +489,12 @@ def create_gradio_interface(client: LeagueMCPClient):
                 Ask about players, matches, rankings, and more using natural language!
                 
                 ### 💡 Example Queries:
-                - "show me detailed information about the first match of Sneaky#NA69"
+                - "Show me detailed information about the last match of Sneaky#NA69"
                 - "Is Sneaky#NA69 in a game right now?"
                 - "What is the current rank of Sneaky#NA69?"
                 - "What champions did Sneaky#NA69 play in the last 3 matches?"
+                - "What lane and against who did Sneaky#NA69 play in the last match?"
+                - "What is the win rate of Sneaky#NA69 in the last 5 matches?"
                 """)
                 
                 # Connection status
@@ -509,7 +511,7 @@ def create_gradio_interface(client: LeagueMCPClient):
                 )
                 
                 msg = gr.Textbox(
-                    placeholder="Ask about League players, matches, rankings... (e.g., 'look up Faker T1')",
+                    placeholder="Ask about League players, matches, rankings... (e.g., 'What lane and against who did Sneaky#NA69 play in the last match?')",
                     label="Your Question",
                     lines=2
                 )
