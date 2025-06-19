@@ -10,7 +10,12 @@ A Model Context Protocol (MCP) server for League of Legends exposing all Riot Ga
 ## MCP Client Features (Optional)
 - ReAct Agent
 - Chatbot UI
-- Tool calling logs
+- Tool calling
+- Resource Utilization
+- Prompt Workflows
+
+https://github.com/user-attachments/assets/101ee6dc-af42-4bf0-81b0-3caba49c83a7
+
 
 ## Quickstart
 
