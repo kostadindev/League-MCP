@@ -1,12 +1,16 @@
 # League Model Context Protocol (MCP)
 
-A Model Context Protocol (MCP) server for League of Legends exposing all Riot Games APIs, static resources (champions, items, tiers, etc.), and workflow prompts. Includes a client using a LangChain ReAct agent (Google Gemini) for tool/resource/prompt calls.
+A Model Context Protocol (MCP) server for League of Legends exposing all Riot Games APIs, static resources (champions, items, tiers, etc.), and workflow prompts. Includes a MCP client with a chatbot UI to demonstrate it's utility made using a ReAct agent for tool/resource/prompt calls. You can build your own client or use Claude for Desktop.
 
-## Features
+## MCP Server Features
 - Riot Games API coverage: Account, Summoner, Match, League, Spectator, Champion, Clash, Tournament, Status, Challenges
 - Static resources: champions, items, summoner spells, queues, maps, game modes, ranked tiers
 - Workflow prompts: player stats, champion analysis, team comps, tournaments, improvement plans
-- Agentic client: LangChain ReAct agent (Google Gemini) with Gradio UI
+
+## MCP Client Features (Optional)
+- ReAct Agent
+- Chatbot UI
+- Tool calling logs
 
 ## Quickstart
 
@@ -14,7 +18,7 @@ A Model Context Protocol (MCP) server for League of Legends exposing all Riot Ga
    ```bash
    git clone <this-repo-url>
    cd League-MCP
-   # (install requirements in mcp-server and mcp-client as needed)
+   # (pip install -r requirements in mcp-server and mcp-client as needed)
    ```
 
 2. Set environment variables in `.env` files:
@@ -74,14 +78,12 @@ This project is licensed under the MIT License.
 
 ## ⚠️ Disclaimer
 
-This project is not affiliated with Riot Games. League of Legends, VALORANT, Teamfight Tactics, and Legends of Runeterra are trademarks of Riot Games, Inc.
+This project is not endorsed by Riot Games and does not reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games and all associated properties are trademarks or registered trademarks of Riot Games, Inc.
 
 ## 📚 Resources
 
 - [Riot Games API Documentation](https://developer.riotgames.com/docs/portal)
 - [Model Context Protocol Specification](https://modelcontextprotocol.io/)
-- [FastMCP Documentation](https://github.com/jlowin/fastmcp)
-
 ---
 
 **Made with ❤️ for the League community** 

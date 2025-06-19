@@ -202,7 +202,9 @@ class LeagueMCPClient:
         
         # Create the ReAct agent
         
-        system_prompt = """You are a League of Legends AI assistant with access to Riot Games API tools, static game data resources, and workflow prompts through MCP (Model Context Protocol).
+        system_prompt = """You are a League of Legends AI assistant specialized exclusively in League of Legends. You have access to Riot Games API tools, static game data resources, and workflow prompts through MCP (Model Context Protocol).
+
+IMPORTANT: You are ONLY for League of Legends queries. If users ask about other games, topics, or general questions unrelated to League of Legends, politely redirect them to ask about League of Legends instead.
 
 CRITICAL: You MUST use the provided tools to get real data. NEVER generate code snippets, fake data, or example responses.
 
@@ -944,7 +946,12 @@ def create_gradio_interface(client: LeagueMCPClient):
                     with gr.Accordion("🚀 Agent Prompts", open=False):
                         gr.Markdown(status_info['prompts'])
                     
-                    gr.Markdown("💡 **Quick Start:** Try asking about a player, requesting a resource, or using a workflow prompt!")
+                
+                # Add disclaimer box at the bottom of the left column
+                gr.Markdown("""
+                ### ⚠️ Disclaimer
+                This project is not endorsed by Riot Games and does not reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games and all associated properties are trademarks or registered trademarks of Riot Games, Inc.
+                """)
             
             # Right column - Chat interface
             with gr.Column(scale=2):
