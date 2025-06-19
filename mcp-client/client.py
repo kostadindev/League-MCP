@@ -402,42 +402,45 @@ def create_gradio_interface(client: LeagueMCPClient):
         theme=gr.themes.Soft()
     ) as interface:
         
-        gr.Markdown("""
-        # 🎮 League of Legends MCP Client
-        
-        **AI-powered League of Legends assistant with access to Riot Games API**
-        
-        Ask about players, matches, rankings, and more using natural language!
-        
-        ### 💡 Example Queries:
-        - "Look up Faker T1"
-        - "Get recent matches for Doublelift NA1"  
-        - "Show challenger league for ranked solo queue"
-        - "Is there a featured game in NA?"
-        """)
-        
-        # Connection status
         with gr.Row():
-            gr.Markdown(f"**Status:** {client.get_connection_status()}")
-        
-        # Main chat interface
-        chatbot = gr.Chatbot(
-            type="messages", 
-            height=600, 
-            show_copy_button=True,
-            placeholder="Start chatting with the League assistant..."
-        )
-        
-        msg = gr.Textbox(
-            placeholder="Ask about League players, matches, rankings... (e.g., 'look up Faker T1')",
-            label="Your Question",
-            lines=2,
-            scale=4
-        )
-        
-        with gr.Row():
-            submit_btn = gr.Button("🚀 Send", variant="primary")
-            clear_btn = gr.Button("🗑️ Clear", variant="secondary")
+            # Left column - Instructions and status
+            with gr.Column(scale=1, min_width=300):
+                gr.Markdown("""
+                # 🎮 League of Legends MCP Client
+                
+                **AI-powered League of Legends assistant with access to Riot Games API**
+                
+                Ask about players, matches, rankings, and more using natural language!
+                
+                ### 💡 Example Queries:
+                - "Look up Faker T1"
+                - "Get recent matches for Doublelift NA1"  
+                - "Show challenger league for ranked solo queue"
+                - "Is there a featured game in NA?"
+                """)
+                
+                # Connection status
+                gr.Markdown(f"**Status:** {client.get_connection_status()}")
+            
+            # Right column - Chat interface
+            with gr.Column(scale=2):
+                # Main chat interface
+                chatbot = gr.Chatbot(
+                    type="messages", 
+                    height=600, 
+                    show_copy_button=True,
+                    placeholder="Start chatting with the League assistant..."
+                )
+                
+                msg = gr.Textbox(
+                    placeholder="Ask about League players, matches, rankings... (e.g., 'look up Faker T1')",
+                    label="Your Question",
+                    lines=2
+                )
+                
+                with gr.Row():
+                    submit_btn = gr.Button("🚀 Send", variant="primary")
+                    clear_btn = gr.Button("🗑️ Clear", variant="secondary")
         
         # Event handlers
         msg.submit(respond, [chatbot, msg], [chatbot, msg])
