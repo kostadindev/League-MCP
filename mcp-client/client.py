@@ -61,6 +61,8 @@ class LeagueMCPClient:
         self.mcp_client: Optional[MultiServerMCPClient] = None
         self.agent = None
         self.tools = []
+        self.resources = []
+        self.prompts = []
         self.is_connected = False
         self.message_queue = queue.Queue()
         
@@ -192,15 +194,21 @@ class LeagueMCPClient:
         
         # Get tools from MCP server
         self.tools = await self.mcp_client.get_tools()
-        logger.info(f"✅ Retrieved {len(self.tools)} tools from MCP server")
+        # Note: Resources and prompts are available but not easily listable with MultiServerMCPClient
+        self.resources = []  # Will be accessed on-demand
+        self.prompts = []   # Will be accessed on-demand
+        
+        logger.info(f"✅ Retrieved {len(self.tools)} tools from MCP server (resources and prompts available on-demand)")
         
         # Create the ReAct agent
         
-        system_prompt = """You are a League of Legends AI assistant with access to Riot Games API tools through MCP (Model Context Protocol).
+        system_prompt = """You are a League of Legends AI assistant with access to Riot Games API tools, static game data resources, and workflow prompts through MCP (Model Context Protocol).
 
 CRITICAL: You MUST use the provided tools to get real data. NEVER generate code snippets, fake data, or example responses.
 
-Available Tools:
+Available MCP Capabilities:
+
+1. TOOLS - API Functions (you can use these directly):
 
 ACCOUNT TOOLS:
 - get_account_by_riot_id(game_name, tag_line, region="americas") - Look up account by Riot ID (e.g., game_name="Faker", tag_line="T1")
@@ -238,6 +246,47 @@ EXAMPLE WORKFLOW for "get puuid of Sneaky#NA1 then get match details":
 4. Extract match id from the result
 5. Call get_match_details(match_id=extracted_match_id, region="na1")
 
+2. RESOURCES - Static Game Data (ask user to use these when needed):
+- ddragon://versions - All Data Dragon versions
+- ddragon://languages - Supported languages
+- ddragon://champions - All champions summary
+- ddragon://champion_data - Detailed champion data
+- ddragon://items - All items data
+- ddragon://summoner_spells - Summoner spells data
+- constants://queues - Queue types and IDs
+- constants://maps - Map IDs and names
+- constants://game_modes - Game modes info
+- constants://game_types - Game types info
+- constants://seasons - Season IDs
+- constants://ranked_tiers - Ranked tier information
+- constants://routing - Platform/regional routing
+
+3. PROMPTS - Workflow Templates (ask user to use these for complex workflows):
+- find_player_stats - Complete player analysis workflow
+- tournament_setup - Tournament organization workflow
+- champion_analysis - Deep champion analysis workflow
+- team_composition_analysis - Team comp analysis workflow
+- player_improvement - Personalized improvement plan
+
+IMPORTANT USAGE GUIDELINES:
+
+**When to suggest Resources:**
+- User asks for "all champions", "champion list", "items", "queues" → Suggest ddragon:// or constants:// resources
+- User wants reference data, game constants, static information → Use resources directly
+
+**When to suggest Prompts:**
+- User wants "analysis of player X", "how to improve", "tournament setup" → Suggest prompts
+- User needs step-by-step workflows or complex analysis → Use prompts
+
+**Resource Access:**
+If a user types a resource URI directly (e.g., "ddragon://champions"), the system will automatically fetch it.
+If resources fail due to network issues, provide helpful fallback information.
+
+**Error Handling:**
+- Data Dragon resources require internet connectivity
+- Constants resources should work offline
+- Always provide informative error messages with alternatives
+
 DO NOT generate Python code, print statements, or fake data. USE THE ACTUAL TOOLS."""
 
         self.agent = create_react_agent(
@@ -253,10 +302,15 @@ DO NOT generate Python code, print statements, or fake data. USE THE ACTUAL TOOL
         
         self.is_connected = True
 
-    def get_connection_status(self) -> str:
-        """Get the current connection status and available tools"""
+    def get_connection_status(self) -> dict:
+        """Get the current connection status and available tools, resources, and prompts"""
         if not self.is_connected:
-            return "❌ **Not Connected** - Please connect to MCP server first"
+            return {
+                "status": "❌ **Not Connected** - Please connect to MCP server first",
+                "tools": "",
+                "resources": "",
+                "prompts": ""
+            }
         
         tool_names = [tool.name for tool in self.tools]
         
@@ -268,22 +322,77 @@ DO NOT generate Python code, print statements, or fake data. USE THE ACTUAL TOOL
         spectator_tools = [t for t in tool_names if 'active' in t or 'featured' in t]
         other_tools = [t for t in tool_names if t not in account_tools + match_tools + summoner_tools + league_tools + spectator_tools]
         
-        status = f"✅ **Connected** - {len(self.tools)} tools available:\n\n"
+        # Main status
+        main_status = f"✅ **Connected** - {len(self.tools)} tools + resources & prompts available"
         
+        # Tools section
+        tools_content = ""
         if account_tools:
-            status += f"**Account Tools:** {', '.join(account_tools)}\n\n"
+            tools_content += f"**Account Tools:** {', '.join(account_tools)}\n\n"
         if summoner_tools:
-            status += f"**Summoner Tools:** {', '.join(summoner_tools)}\n\n"
+            tools_content += f"**Summoner Tools:** {', '.join(summoner_tools)}\n\n"
         if match_tools:
-            status += f"**Match Tools:** {', '.join(match_tools)}\n\n"
+            tools_content += f"**Match Tools:** {', '.join(match_tools)}\n\n"
         if league_tools:
-            status += f"**League Tools:** {', '.join(league_tools)}\n\n"
+            tools_content += f"**League Tools:** {', '.join(league_tools)}\n\n"
         if spectator_tools:
-            status += f"**Spectator Tools:** {', '.join(spectator_tools)}\n\n"
+            tools_content += f"**Spectator Tools:** {', '.join(spectator_tools)}\n\n"
         if other_tools:
-            status += f"**Other Tools:** {', '.join(other_tools)}\n\n"
-            
-        return status.strip()
+            tools_content += f"**Other Tools:** {', '.join(other_tools)}\n\n"
+        
+        tools_content += f"**Total:** {len(self.tools)} tools for real-time League of Legends data"
+        
+        # Resources section
+        resources_content = """**Data Dragon Resources (Static Game Data):**
+- `ddragon://versions` - All available Data Dragon versions
+- `ddragon://languages` - Supported localization languages  
+- `ddragon://champions` - All champions summary data
+- `ddragon://champion_data` - Detailed champion information (sample: Ahri)
+- `ddragon://items` - Complete items database with stats and costs
+- `ddragon://summoner_spells` - Summoner spells data and cooldowns
+
+**Game Constants Resources (Reference Data):**
+- `constants://queues` - Queue types and IDs (Ranked, Normal, ARAM, etc.)
+- `constants://maps` - Map information (Summoner's Rift, ARAM, etc.)
+- `constants://game_modes` - Game mode details and descriptions
+- `constants://game_types` - Game type classifications
+- `constants://seasons` - Season information and IDs
+- `constants://ranked_tiers` - Ranking system details and LP thresholds
+- `constants://routing` - API routing information for different regions
+
+**Usage:** Type resource URIs directly (e.g., "Show me ddragon://champions")"""
+        
+        # Prompts section  
+        prompts_content = """**Available Workflow Prompts:**
+
+- **`find_player_stats`** - Complete player analysis workflow
+  - *Usage:* "Use find_player_stats for Sneaky#NA69"
+  - *Provides:* Step-by-step player analysis including stats, matches, and performance
+
+- **`tournament_setup`** - Tournament organization workflow
+  - *Usage:* "Use tournament_setup for My Tournament"
+  - *Provides:* Complete tournament setup guide with compliance requirements
+
+- **`champion_analysis`** - Deep champion analysis workflow
+  - *Usage:* "Use champion_analysis for Azir"
+  - *Provides:* Comprehensive champion analysis including meta, builds, and strategies
+
+- **`team_composition_analysis`** - Team comp analysis workflow
+  - *Usage:* "Use team_composition_analysis for Azir,Graves,Thresh,Jinx,Malphite"
+  - *Provides:* Team synergy analysis and strategic recommendations
+
+- **`player_improvement`** - Personalized improvement plan
+  - *Usage:* "Use player_improvement for MyName#NA1 targeting Gold as ADC"
+  - *Provides:* Customized coaching plan and skill development roadmap
+
+**Usage:** Reference prompt names in your queries for complex workflow automation"""
+        
+        return {
+            "status": main_status,
+            "tools": tools_content.strip(),
+            "resources": resources_content.strip(),
+            "prompts": prompts_content.strip()
+        }
     
     def generate_response(self, history: List[ChatMessage], query: str) -> Generator[List[ChatMessage], None, None]:
         """Generate response with tool call logging"""
@@ -310,6 +419,63 @@ DO NOT generate Python code, print statements, or fake data. USE THE ACTUAL TOOL
         yield history
         
         try:
+            # Check if this is a resource or prompt request
+            query_lower = query.lower()
+            
+            # Handle resource requests
+            if any(prefix in query_lower for prefix in ['ddragon://', 'constants://']):
+                for line in query.split():
+                    if '://' in line:
+                        resource_uri = line.strip()
+                        # Assume league server for now
+                        server_name = "league"
+                        history.append(ChatMessage(
+                            role="assistant",
+                            content=f"🔍 Fetching resource: {resource_uri}",
+                            metadata={"title": "📚 Reading MCP Resource"}
+                        ))
+                        yield history
+                        
+                        content = self._run_in_loop(self.get_resource_content(server_name, resource_uri))
+                        history.append(ChatMessage(
+                            role="assistant",
+                            content=content
+                        ))
+                        yield history
+                        return
+            
+            # Handle prompt requests
+            prompt_keywords = ['find_player_stats', 'tournament_setup', 'champion_analysis', 'team_composition_analysis', 'player_improvement']
+            for prompt_name in prompt_keywords:
+                if prompt_name in query_lower:
+                    # Assume league server for now
+                    server_name = "league"
+                    history.append(ChatMessage(
+                        role="assistant",
+                        content=f"🚀 Generating workflow prompt: {prompt_name}",
+                        metadata={"title": "📋 Using MCP Prompt"}
+                    ))
+                    yield history
+                    
+                    # Extract parameters from the query if possible
+                    kwargs = {}
+                    if 'for ' in query_lower:
+                        parts = query.split('for ')
+                        if len(parts) > 1:
+                            player_part = parts[1].strip()
+                            if '#' in player_part:
+                                game_name, tag_line = player_part.split('#', 1)
+                                kwargs['game_name'] = game_name.strip()
+                                kwargs['tag_line'] = tag_line.strip()
+                    
+                    content = self._run_in_loop(self.get_prompt_content(server_name, prompt_name, **kwargs))
+                    history.append(ChatMessage(
+                        role="assistant",
+                        content=content
+                    ))
+                    yield history
+                    return
+            
             # Clear the message queue
             while not self.message_queue.empty():
                 try:
@@ -426,6 +592,117 @@ DO NOT generate Python code, print statements, or fake data. USE THE ACTUAL TOOL
             if self.loop_thread:
                 self.loop_thread.join(timeout=5)
 
+    async def get_resource_content(self, server_name: str, resource_uri: str) -> str:
+        """Get content from an MCP resource with enhanced error handling"""
+        if not self.mcp_client:
+            return "❌ MCP client not connected"
+        
+        try:
+            logger.info(f"Attempting to fetch resource: {resource_uri}")
+            
+            # Add timeout and better error handling
+            import asyncio
+            resources = await asyncio.wait_for(
+                self.mcp_client.get_resources(server_name, uris=[resource_uri]),
+                timeout=30.0
+            )
+            
+            if resources and len(resources) > 0:
+                content = resources[0].data
+                logger.info(f"Successfully fetched resource {resource_uri}, length: {len(content)}")
+                return content
+            else:
+                error_msg = f"❌ Resource {resource_uri} not found or empty"
+                logger.warning(error_msg)
+                return error_msg
+                
+        except asyncio.TimeoutError:
+            error_msg = f"❌ Timeout while fetching resource {resource_uri} (30s)"
+            logger.error(error_msg)
+            return error_msg
+        except Exception as e:
+            error_msg = f"❌ Error reading resource {resource_uri}: {str(e)}"
+            logger.error(error_msg)
+            
+            # Provide helpful fallback information
+            if "ddragon://" in resource_uri:
+                return f"""❌ Error accessing Data Dragon resource: {str(e)}
+
+🔧 **Fallback Information:**
+This resource provides League of Legends static game data from Riot's Data Dragon service.
+
+📚 **Available Data Dragon Resources:**
+- **ddragon://versions** - Game version information
+- **ddragon://languages** - Supported languages
+- **ddragon://champions** - All champion data summary
+- **ddragon://champion_data** - Detailed champion information (sample: Ahri)
+- **ddragon://items** - Complete items database
+- **ddragon://summoner_spells** - Summoner spells data
+
+⚠️ **Note:** Data Dragon resources require internet connectivity to fetch live data from Riot's CDN.
+"""
+            elif "constants://" in resource_uri:
+                return f"""❌ Error accessing game constants: {str(e)}
+
+🔧 **Fallback Information:**
+This resource provides League of Legends game constants and reference data.
+
+📚 **Available Constants Resources:**
+- **constants://queues** - Queue types and IDs (Ranked, Normal, ARAM, etc.)
+- **constants://maps** - Map information (Summoner's Rift, ARAM, etc.)
+- **constants://game_modes** - Game mode details
+- **constants://game_types** - Game type classifications
+- **constants://seasons** - Season information
+- **constants://ranked_tiers** - Ranking system details
+- **constants://routing** - API routing information
+
+✅ **Note:** Constants are static data and should work offline.
+"""
+            else:
+                return error_msg
+
+    async def get_prompt_content(self, server_name: str, prompt_name: str, **kwargs) -> str:
+        """Get content from an MCP prompt with arguments"""
+        if not self.mcp_client:
+            return "❌ MCP client not connected"
+        
+        try:
+            messages = await self.mcp_client.get_prompt(server_name, prompt_name, arguments=kwargs)
+            if messages:
+                # Combine all message contents
+                content = "\n".join([msg.content for msg in messages])
+                return content
+            else:
+                return f"❌ Prompt {prompt_name} not found"
+        except Exception as e:
+            logger.error(f"Error getting prompt {prompt_name}: {e}")
+            return f"❌ Error getting prompt: {str(e)}"
+
+    async def list_available_resources(self) -> List[dict]:
+        """List all available MCP resources"""
+        if not self.mcp_client:
+            return []
+        
+        try:
+            # Note: MultiServerMCPClient doesn't have a direct list_resources method
+            # We'll need to use a session to get this info
+            return []  # Will be populated during connection
+        except Exception as e:
+            logger.error(f"Error listing resources: {e}")
+            return []
+
+    async def list_available_prompts(self) -> List[dict]:
+        """List all available MCP prompts"""
+        if not self.mcp_client:
+            return []
+        
+        try:
+            # Note: MultiServerMCPClient doesn't have a direct list_prompts method
+            # We'll need to use a session to get this info
+            return []  # Will be populated during connection
+        except Exception as e:
+            logger.error(f"Error listing prompts: {e}")
+            return []
 
 def create_gradio_interface(client: LeagueMCPClient):
     """Create and configure the Gradio interface"""
@@ -473,16 +750,37 @@ def create_gradio_interface(client: LeagueMCPClient):
                 Ask about players, matches, rankings, and more using natural language!
                 
                 ### 💡 Example Queries:
-                - "Show me detailed information about the last match of Sneaky#NA69"
-                - "Is Sneaky#NA69 in a game right now?"
+                
+                **🔧 Tool-based Queries (API Data):**
+                - "What lane and against who did Sneaky#NA69 play in the last match?"
                 - "What is the current rank of Sneaky#NA69?"
                 - "What champions did Sneaky#NA69 play in the last 3 matches?"
-                - "What lane and against who did Sneaky#NA69 play in the last match?"
-                - "What is the win rate of Sneaky#NA69 in the last 5 matches?"
+                
+                **📚 Resource Queries (Static Data):**
+                - "Show me ddragon://champions" - Get all champions summary
+                - "Get ddragon://items" - View complete items database
+                - "Show constants://ranked_tiers" - Ranking system details
+                
+                **🚀 Prompt Workflows (Complex Analysis):**
+                - "Use find_player_stats for Sneaky#NA69" - Complete player analysis
                 """)
                 
                 # Connection status
-                gr.Markdown(f"**Status:** {client.get_connection_status()}")
+                status_info = client.get_connection_status()
+                gr.Markdown(f"**Status:** {status_info['status']}")
+                
+                # Expandable sections for Tools, Resources, and Prompts
+                if client.is_connected:
+                    with gr.Accordion("🔧 Agent Tools", open=False):
+                        gr.Markdown(status_info['tools'])
+                    
+                    with gr.Accordion("📚 Agent Resources", open=False):
+                        gr.Markdown(status_info['resources'])
+                    
+                    with gr.Accordion("🚀 Agent Prompts", open=False):
+                        gr.Markdown(status_info['prompts'])
+                    
+                    gr.Markdown("💡 **Quick Start:** Try asking about a player, requesting a resource, or using a workflow prompt!")
             
             # Right column - Chat interface
             with gr.Column(scale=2):
@@ -495,7 +793,7 @@ def create_gradio_interface(client: LeagueMCPClient):
                 )
                 
                 msg = gr.Textbox(
-                    placeholder="Ask about League players, matches, rankings... (e.g., 'What lane and against who did Sneaky#NA69 play in the last match?')",
+                    placeholder="Ask about League players, matches, rankings... (e.g., 'Is Sneaky#NA69 in game right now?')",
                     label="Your Question",
                     lines=2
                 )
