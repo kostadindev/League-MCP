@@ -18,9 +18,12 @@ from dotenv import load_dotenv
 
 load_dotenv()  # load environment variables from .env
 
-# Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# Set up logging - only show warnings and errors by default
+logging.basicConfig(level=logging.WARNING, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Set specific loggers to show important info
+logging.getLogger(__name__).setLevel(logging.INFO)  # Allow INFO for our important logs
 
 class ToolCallLogger(BaseCallbackHandler):
     """Custom callback handler to log tool calls"""
@@ -79,13 +82,9 @@ class LeagueMCPClient:
         
         # Initialize callback handler for tool logging
         self.callback_handler = ToolCallLogger(self.message_queue)
-        
-        logger.info("LeagueMCPClient initialized with LangChain and Google Gemini")
     
     async def process_query_async(self, query: str, history: List[ChatMessage] = None) -> str:
         """Process a League-related query using LangChain ReAct agent with Gemini"""
-        logger.info(f"Processing user query: {query}")
-        
         if not self.agent:
             return "❌ Agent not initialized. Please connect to the MCP server first."
         
@@ -127,8 +126,6 @@ class LeagueMCPClient:
             if not input_messages or input_messages[-1].content != query:
                 input_messages.append(HumanMessage(content=query))
             
-            logger.info(f"Sending {len(input_messages)} messages to agent (including conversation history)")
-            
             # Run the agent with callback for tool logging
             result = await self.agent.ainvoke(
                 {"messages": input_messages},
@@ -140,7 +137,6 @@ class LeagueMCPClient:
             if messages:
                 final_message = messages[-1]
                 response = final_message.content if hasattr(final_message, 'content') else str(final_message)
-                logger.info("✅ Agent processing completed successfully")
                 return response
             else:
                 return "❌ No response from agent"
@@ -161,7 +157,6 @@ class LeagueMCPClient:
         self.loop_thread = threading.Thread(target=run_loop, daemon=True)
         self.loop_thread.start()
         self.loop_ready.wait()  # Wait for the loop to be ready
-        logger.info("Background event loop started")
 
     def _run_in_loop(self, coro):
         """Run a coroutine in the background event loop"""
@@ -185,8 +180,6 @@ class LeagueMCPClient:
             raise ValueError("Server script must be a .py file")
 
         # Create MCP client configuration
-        logger.info("Setting up MCP client with langchain-mcp-adapters...")
-        
         self.mcp_client = MultiServerMCPClient(
             {
                 "league": {
@@ -198,13 +191,10 @@ class LeagueMCPClient:
         )
         
         # Get tools from MCP server
-        logger.info("Getting tools from MCP server...")
-        
         self.tools = await self.mcp_client.get_tools()
         logger.info(f"✅ Retrieved {len(self.tools)} tools from MCP server")
         
         # Create the ReAct agent
-        logger.info("Creating LangChain ReAct agent with Google Gemini...")
         
         system_prompt = """You are a League of Legends AI assistant with access to Riot Games API tools through MCP (Model Context Protocol).
 
@@ -256,8 +246,6 @@ DO NOT generate Python code, print statements, or fake data. USE THE ACTUAL TOOL
             prompt=system_prompt,
             debug=True  # Enable debug mode for more logging
         )
-        
-        logger.info("✅ LangChain ReAct agent created successfully with Google Gemini")
 
         # List available tools
         tool_names = [tool.name for tool in self.tools]
@@ -425,12 +413,10 @@ DO NOT generate Python code, print statements, or fake data. USE THE ACTUAL TOOL
 
     async def cleanup(self):
         """Clean up resources"""
-        logger.info("Cleaning up resources...")
         if self.mcp_client:
             try:
                 # MultiServerMCPClient doesn't have a close method, so we'll just clean up references
                 self.mcp_client = None
-                logger.info("MCP client cleaned up successfully")
             except Exception as e:
                 logger.warning(f"Error cleaning up MCP client: {e}")
         
@@ -439,7 +425,6 @@ DO NOT generate Python code, print statements, or fake data. USE THE ACTUAL TOOL
             self.loop.call_soon_threadsafe(self.loop.stop)
             if self.loop_thread:
                 self.loop_thread.join(timeout=5)
-            logger.info("Event loop cleaned up successfully")
 
 
 def create_gradio_interface(client: LeagueMCPClient):
@@ -456,7 +441,6 @@ def create_gradio_interface(client: LeagueMCPClient):
     
     def like_handler(evt: gr.LikeData):
         """Handle like/dislike events"""
-        logger.info(f"User {'liked' if evt.liked else 'disliked'} message at index {evt.index}")
         print(f"Feedback: {evt.index}, {evt.liked}, {evt.value}")
     
     with gr.Blocks(
