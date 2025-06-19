@@ -1,6 +1,6 @@
 # League MCP Server
 
-A Model Context Protocol (MCP) server for interacting with the Riot Games API for League of Legends.
+See the [top-level README](../README.md) for full instructions and usage.
 
 ## Project Structure
 
