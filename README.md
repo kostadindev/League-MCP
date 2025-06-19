@@ -31,15 +31,27 @@ https://github.com/user-attachments/assets/101ee6dc-af42-4bf0-81b0-3caba49c83a7
    - In `mcp-server/`:
      ```bash
      cd mcp-server
+     python -m venv .venv
+     # Windows:
+     .venv\Scripts\activate
+     # macOS/Linux:
+     # source .venv/bin/activate
      pip install -r requirements.txt
      cd ..
      ```
    - In `mcp-client/`:
      ```bash
      cd mcp-client
+     python -m venv .venv
+     # Windows:
+     .venv\Scripts\activate
+     # macOS/Linux:
+     # source .venv/bin/activate
      pip install -r requirements.txt
      cd ..
      ```
+   
+   > **Note**: With pip, you need to manually create and activate virtual environments. Remember to activate the appropriate environment before running the applications!
 
    **Option B: Using uv (recommended for faster installs)**
    - First install uv if you haven't already:
@@ -55,9 +67,11 @@ https://github.com/user-attachments/assets/101ee6dc-af42-4bf0-81b0-3caba49c83a7
    - In `mcp-client/`:
      ```bash
      cd mcp-client
-     uv pip install -r requirements.txt
+     uv sync
      cd ..
      ```
+   
+   > **Note**: uv automatically creates and manages `.venv` virtual environments in each directory. You don't need to manually create or activate them!
 
 3. Set environment variables in `.env` files:
    - In `mcp-server/.env`:
