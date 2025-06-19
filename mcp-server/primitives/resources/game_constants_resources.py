@@ -181,7 +181,7 @@ SEASONS = [
 def register_game_constants_resources(mcp: FastMCP):
     """Register all game constants resources."""
     
-    @mcp.resource(name="constants://queues", description="Get all queue types and IDs")
+    @mcp.resource("constants://queues", description="Get all queue types and IDs")
     async def get_queue_types() -> str:
         """Get all queue types with descriptions."""
         logger.info("Resource called: get_queue_types")
@@ -203,7 +203,7 @@ Queue ID: {queue['queueId']}
         
         return result
 
-    @mcp.resource(name="constants://maps", description="Get all map IDs and names")
+    @mcp.resource("constants://maps", description="Get all map IDs and names")
     async def get_maps() -> str:
         """Get all map information."""
         logger.info("Resource called: get_maps")
@@ -225,7 +225,7 @@ Map ID: {map_info['mapId']}
         
         return result
 
-    @mcp.resource(name="constants://game_modes", description="Get all game modes")
+    @mcp.resource("constants://game_modes", description="Get all game modes")
     async def get_game_modes() -> str:
         """Get all game mode information."""
         logger.info("Resource called: get_game_modes")
@@ -246,7 +246,7 @@ Mode: {mode['gameMode']}
         
         return result
 
-    @mcp.resource(name="constants://game_types", description="Get all game types")
+    @mcp.resource("constants://game_types", description="Get all game types")
     async def get_game_types() -> str:
         """Get all game type information."""
         logger.info("Resource called: get_game_types")
@@ -267,7 +267,7 @@ Type: {game_type['gameType']}
         
         return result
 
-    @mcp.resource(name="constants://seasons", description="Get all season IDs")
+    @mcp.resource("constants://seasons", description="Get all season IDs")
     async def get_seasons() -> str:
         """Get all season information."""
         logger.info("Resource called: get_seasons")
@@ -285,7 +285,7 @@ SEASON DETAILS:
         
         return result
 
-    @mcp.resource(name="constants://ranked_tiers", description="Get ranked tier information")
+    @mcp.resource("constants://ranked_tiers", description="Get ranked tier information")
     async def get_ranked_tiers() -> str:
         """Get ranked tier and division information."""
         logger.info("Resource called: get_ranked_tiers")
@@ -320,7 +320,7 @@ NOTES:
         
         return result
 
-    @mcp.resource(name="constants://routing", description="Get platform and regional routing information")
+    @mcp.resource("constants://routing", description="Get platform and regional routing information")
     async def get_routing_info() -> str:
         """Get routing information for API calls."""
         logger.info("Resource called: get_routing_info")

@@ -14,7 +14,7 @@ LATEST_VERSION = "15.12.1"  # This should be updated or fetched dynamically
 def register_data_dragon_resources(mcp: FastMCP):
     """Register all Data Dragon resources."""
     
-    @mcp.resource(name="ddragon://versions", description="Get all available Data Dragon versions")
+    @mcp.resource("ddragon://versions", description="Get all available Data Dragon versions")
     async def get_versions() -> str:
         """Get all available Data Dragon versions."""
         logger.info("Resource called: get_versions")
@@ -48,7 +48,7 @@ Recent Versions:
                 logger.error(error_msg)
                 return f"Error: {error_msg}"
 
-    @mcp.resource(name="ddragon://languages", description="Get all supported languages")
+    @mcp.resource("ddragon://languages", description="Get all supported languages")
     async def get_languages() -> str:
         """Get all supported Data Dragon languages."""
         logger.info("Resource called: get_languages")
@@ -111,11 +111,15 @@ Supported Languages:
                 logger.error(error_msg)
                 return f"Error: {error_msg}"
 
-    @mcp.resource(name="ddragon://champion/{champion_id}", description="Get champion data by ID")
-    async def get_champion_data(champion_id: str, version: str = LATEST_VERSION, language: str = "en_US") -> str:
+    @mcp.resource("ddragon://champion_data", description="Get champion data by ID")
+    async def get_champion_data() -> str:
         """Get detailed champion data."""
-        logger.info(f"Resource called: get_champion_data(champion_id={champion_id})")
+        logger.info("Resource called: get_champion_data")
         
+        # Example with a popular champion
+        champion_id = "Ahri"
+        version = LATEST_VERSION
+        language = "en_US"
         url = f"{DATA_DRAGON_BASE}/cdn/{version}/data/{language}/champion/{champion_id}.json"
         
         async with httpx.AsyncClient() as client:
@@ -166,11 +170,13 @@ STATS:
                 logger.error(error_msg)
                 return f"Error: {error_msg}"
 
-    @mcp.resource(name="ddragon://champions", description="Get all champions summary")
-    async def get_champions_summary(version: str = LATEST_VERSION, language: str = "en_US") -> str:
+    @mcp.resource("ddragon://champions", description="Get all champions summary")
+    async def get_champions_summary() -> str:
         """Get summary of all champions."""
         logger.info("Resource called: get_champions_summary")
         
+        version = LATEST_VERSION
+        language = "en_US"
         url = f"{DATA_DRAGON_BASE}/cdn/{version}/data/{language}/champion.json"
         
         async with httpx.AsyncClient() as client:
@@ -204,11 +210,13 @@ CHAMPION LIST:
                 logger.error(error_msg)
                 return f"Error: {error_msg}"
 
-    @mcp.resource(name="ddragon://items", description="Get all items data")
-    async def get_items_data(version: str = LATEST_VERSION, language: str = "en_US") -> str:
+    @mcp.resource("ddragon://items", description="Get all items data")
+    async def get_items_data() -> str:
         """Get all items data."""
         logger.info("Resource called: get_items_data")
         
+        version = LATEST_VERSION
+        language = "en_US"
         url = f"{DATA_DRAGON_BASE}/cdn/{version}/data/{language}/item.json"
         
         async with httpx.AsyncClient() as client:
@@ -248,11 +256,13 @@ SAMPLE ITEMS (First 20):
                 logger.error(error_msg)
                 return f"Error: {error_msg}"
 
-    @mcp.resource(name="ddragon://summoner_spells", description="Get all summoner spells")
-    async def get_summoner_spells(version: str = LATEST_VERSION, language: str = "en_US") -> str:
+    @mcp.resource("ddragon://summoner_spells", description="Get all summoner spells")
+    async def get_summoner_spells() -> str:
         """Get all summoner spells data."""
         logger.info("Resource called: get_summoner_spells")
         
+        version = LATEST_VERSION
+        language = "en_US"
         url = f"{DATA_DRAGON_BASE}/cdn/{version}/data/{language}/summoner.json"
         
         async with httpx.AsyncClient() as client:
