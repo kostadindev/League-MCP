@@ -2,9 +2,10 @@ import asyncio
 import os
 import sys
 import logging
-from typing import Optional
+from typing import Optional, Generator, List
 from pathlib import Path
 import gradio as gr
+from gradio import ChatMessage
 import threading
 import queue
 
@@ -24,37 +25,30 @@ logger = logging.getLogger(__name__)
 class ToolCallLogger(BaseCallbackHandler):
     """Custom callback handler to log tool calls"""
     
-    def __init__(self, status_queue: Optional[queue.Queue] = None):
+    def __init__(self, message_queue: Optional[queue.Queue] = None):
         super().__init__()
-        self.status_queue = status_queue
+        self.message_queue = message_queue
     
     def on_tool_start(self, serialized: dict, input_str: str, **kwargs) -> None:
         """Log when a tool starts executing"""
         tool_name = serialized.get("name", "Unknown")
-        status_msg = f"🔧 **Tool Call:** {tool_name}\n📋 **Input:** {input_str}"
         
-        if self.status_queue:
-            self.status_queue.put(("tool_start", status_msg))
+        if self.message_queue:
+            self.message_queue.put(("tool_start", tool_name, input_str))
         
         logger.info(f"Tool started: {tool_name} with input: {input_str}")
     
     def on_tool_end(self, output: str, **kwargs) -> None:
         """Log when a tool finishes executing"""
-        # Truncate output for display
-        display_output = output[:500] + "..." if len(output) > 500 else output
-        status_msg = f"✅ **Tool Result:**\n📤 {display_output}"
-        
-        if self.status_queue:
-            self.status_queue.put(("tool_end", status_msg))
+        if self.message_queue:
+            self.message_queue.put(("tool_end", output))
             
         logger.info(f"Tool completed with output: {output[:200]}...")
     
     def on_tool_error(self, error: Exception, **kwargs) -> None:
         """Log when a tool encounters an error"""
-        status_msg = f"❌ **Tool Error:** {error}"
-        
-        if self.status_queue:
-            self.status_queue.put(("tool_error", status_msg))
+        if self.message_queue:
+            self.message_queue.put(("tool_error", str(error)))
             
         logger.error(f"Tool error: {error}")
 
@@ -65,7 +59,7 @@ class LeagueMCPClient:
         self.agent = None
         self.tools = []
         self.is_connected = False
-        self.status_queue = queue.Queue()
+        self.message_queue = queue.Queue()
         
         # Event loop management
         self.loop = None
@@ -84,11 +78,11 @@ class LeagueMCPClient:
         )
         
         # Initialize callback handler for tool logging
-        self.callback_handler = ToolCallLogger(self.status_queue)
+        self.callback_handler = ToolCallLogger(self.message_queue)
         
         logger.info("LeagueMCPClient initialized with LangChain and Google Gemini")
     
-    async def process_query(self, query: str) -> str:
+    async def process_query_async(self, query: str) -> str:
         """Process a League-related query using LangChain ReAct agent with Gemini"""
         logger.info(f"Processing user query: {query}")
         
@@ -102,9 +96,6 @@ class LeagueMCPClient:
             # Run the agent with callback for tool logging
             logger.info("Running LangChain ReAct agent with Google Gemini...")
             
-            # Signal that processing started
-            self.status_queue.put(("processing_start", f"🤖 **Processing:** {query}"))
-            
             result = await self.agent.ainvoke(
                 {"messages": input_messages},
                 config={"callbacks": [self.callback_handler]}
@@ -116,10 +107,6 @@ class LeagueMCPClient:
                 final_message = messages[-1]
                 response = final_message.content if hasattr(final_message, 'content') else str(final_message)
                 logger.info("✅ Agent processing completed successfully")
-                
-                # Signal that processing completed
-                self.status_queue.put(("processing_end", "✅ **Processing completed**"))
-                
                 return response
             else:
                 return "❌ No response from agent"
@@ -127,7 +114,6 @@ class LeagueMCPClient:
         except Exception as e:
             error_msg = f"Error processing query with agent: {str(e)}"
             logger.error(error_msg)
-            self.status_queue.put(("error", f"❌ **Error:** {error_msg}"))
             return error_msg
 
     def _start_event_loop(self):
@@ -152,11 +138,7 @@ class LeagueMCPClient:
         return future.result()
 
     async def connect_to_server(self, server_script_path: str):
-        """Connect to the League MCP server and initialize the LangChain agent
-
-        Args:
-            server_script_path: Path to the League server script
-        """
+        """Connect to the League MCP server and initialize the LangChain agent"""
         logger.info(f"Connecting to League MCP server: {server_script_path}")
         
         # Convert to absolute path
@@ -247,7 +229,7 @@ DO NOT generate Python code, print statements, or fake data. USE THE ACTUAL TOOL
         
         self.is_connected = True
 
-    def get_connection_status(self):
+    def get_connection_status(self) -> str:
         """Get the current connection status and available tools"""
         if not self.is_connected:
             return "❌ **Not Connected** - Please connect to MCP server first"
@@ -255,60 +237,129 @@ DO NOT generate Python code, print statements, or fake data. USE THE ACTUAL TOOL
         tool_names = [tool.name for tool in self.tools]
         return f"✅ **Connected** - {len(self.tools)} tools available: {', '.join(tool_names[:5])}{'...' if len(tool_names) > 5 else ''}"
     
-    def _start_event_loop(self):
-        """Start the event loop in a background thread"""
-        def run_loop():
-            self.loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(self.loop)
-            self.loop_ready.set()
-            self.loop.run_forever()
+    def generate_response(self, history: List[ChatMessage], query: str) -> Generator[List[ChatMessage], None, None]:
+        """Generate response with tool call logging"""
+        if not query.strip():
+            return
         
-        self.loop_thread = threading.Thread(target=run_loop, daemon=True)
-        self.loop_thread.start()
-        self.loop_ready.wait()  # Wait for loop to be ready
-    
-    def _run_in_loop(self, coro):
-        """Run a coroutine in the background event loop"""
-        if not self.loop:
-            raise RuntimeError("Event loop not started")
-        
-        future = asyncio.run_coroutine_threadsafe(coro, self.loop)
-        return future.result()
-    
-    def chat_response(self, message, history):
-        """Process chat message and return response (sync wrapper for async)"""
-        if not message.strip():
-            return history, ""
+        # Add user message
+        history.append(ChatMessage(role="user", content=query))
+        yield history
         
         if not self.is_connected:
-            response = "❌ Not connected to MCP server. Please check connection."
-            history.append({"role": "user", "content": message})
-            history.append({"role": "assistant", "content": response})
-            return history, ""
+            history.append(ChatMessage(
+                role="assistant", 
+                content="❌ Not connected to MCP server. Please check connection."
+            ))
+            yield history
+            return
+        
+        # Add thinking message
+        history.append(ChatMessage(
+            role="assistant",
+            content="Let me help you with that League of Legends query. I'll use the available tools to get the information you need."
+        ))
+        yield history
         
         try:
-            # Run in the persistent event loop
-            response = self._run_in_loop(self.process_query(message))
-            history.append({"role": "user", "content": message})
-            history.append({"role": "assistant", "content": response})
+            # Clear the message queue
+            while not self.message_queue.empty():
+                try:
+                    self.message_queue.get_nowait()
+                except queue.Empty:
+                    break
+            
+            # Process the query in the background
+            def run_query():
+                return self._run_in_loop(self.process_query_async(query))
+            
+            # Start processing
+            import threading
+            result_container = {"result": None, "error": None}
+            
+            def query_thread():
+                try:
+                    result_container["result"] = run_query()
+                except Exception as e:
+                    result_container["error"] = str(e)
+            
+            thread = threading.Thread(target=query_thread)
+            thread.start()
+            
+            # Monitor for tool calls while processing
+            current_tool = None
+            while thread.is_alive():
+                try:
+                    # Check for tool messages
+                    message_type, *args = self.message_queue.get(timeout=0.1)
+                    
+                    if message_type == "tool_start":
+                        tool_name, input_str = args
+                        current_tool = tool_name
+                        # Truncate long inputs
+                        display_input = input_str[:200] + "..." if len(input_str) > 200 else input_str
+                        history.append(ChatMessage(
+                            role="assistant",
+                            content=f"Using {tool_name} tool with input: {display_input}",
+                            metadata={"title": f"🔧 Calling tool '{tool_name}'"}
+                        ))
+                        yield history
+                    
+                    elif message_type == "tool_end":
+                        output = args[0]
+                        if current_tool:
+                            # Truncate long outputs
+                            display_output = output[:300] + "..." if len(output) > 300 else output
+                            history.append(ChatMessage(
+                                role="assistant",
+                                content=f"Tool returned: {display_output}",
+                                metadata={"title": f"🛠️ Used tool '{current_tool}'"}
+                            ))
+                            yield history
+                            current_tool = None
+                    
+                    elif message_type == "tool_error":
+                        error = args[0]
+                        if current_tool:
+                            history.append(ChatMessage(
+                                role="assistant",
+                                content=f"Tool error: {error}",
+                                metadata={"title": f"💥 Error in tool '{current_tool}'"}
+                            ))
+                            yield history
+                            current_tool = None
+                
+                except queue.Empty:
+                    continue
+                except Exception as e:
+                    logger.error(f"Error processing tool message: {e}")
+                    continue
+            
+            # Wait for the query to complete
+            thread.join()
+            
+            # Add the final response
+            if result_container["error"]:
+                history.append(ChatMessage(
+                    role="assistant",
+                    content=f"❌ Error: {result_container['error']}"
+                ))
+            else:
+                history.append(ChatMessage(
+                    role="assistant",
+                    content=result_container["result"]
+                ))
+            
+            yield history
+            
         except Exception as e:
             error_msg = f"Error processing query: {str(e)}"
             logger.error(error_msg)
-            history.append({"role": "user", "content": message})
-            history.append({"role": "assistant", "content": f"❌ {error_msg}"})
-        
-        return history, ""
-    
-    def get_status_updates(self):
-        """Get status updates from the queue"""
-        updates = []
-        while not self.status_queue.empty():
-            try:
-                status_type, message = self.status_queue.get_nowait()
-                updates.append(f"{message}")
-            except queue.Empty:
-                break
-        return "\n\n".join(updates) if updates else ""
+            history.append(ChatMessage(
+                role="assistant",
+                content=f"❌ {error_msg}"
+            ))
+            yield history
 
     async def cleanup(self):
         """Clean up resources"""
@@ -332,21 +383,23 @@ DO NOT generate Python code, print statements, or fake data. USE THE ACTUAL TOOL
 def create_gradio_interface(client: LeagueMCPClient):
     """Create and configure the Gradio interface"""
     
+    def respond(history, message):
+        """Handle user input and generate response"""
+        if not message.strip():
+            return history, ""
+        
+        # Use the client's generator to create responses
+        for updated_history in client.generate_response(history, message):
+            yield updated_history, ""
+    
+    def like_handler(evt: gr.LikeData):
+        """Handle like/dislike events"""
+        logger.info(f"User {'liked' if evt.liked else 'disliked'} message at index {evt.index}")
+        print(f"Feedback: {evt.index}, {evt.liked}, {evt.value}")
+    
     with gr.Blocks(
         title="League of Legends MCP Client",
-        theme=gr.themes.Soft(),
-        css="""
-        .gradio-container {
-            max-width: 1200px !important;
-        }
-        .status-box {
-            background-color: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: 0.5rem;
-            padding: 1rem;
-            margin: 0.5rem 0;
-        }
-        """
+        theme=gr.themes.Soft()
     ) as interface:
         
         gr.Markdown("""
@@ -355,91 +408,42 @@ def create_gradio_interface(client: LeagueMCPClient):
         **AI-powered League of Legends assistant with access to Riot Games API**
         
         Ask about players, matches, rankings, and more using natural language!
+        
+        ### 💡 Example Queries:
+        - "Look up Faker T1"
+        - "Get recent matches for Doublelift NA1"  
+        - "Show challenger league for ranked solo queue"
+        - "Is there a featured game in NA?"
         """)
         
         # Connection status
         with gr.Row():
-            status_display = gr.Markdown(
-                value=client.get_connection_status(),
-                elem_classes=["status-box"]
-            )
-            refresh_btn = gr.Button("🔄 Refresh Status", size="sm")
-        
-        # Tool status updates
-        tool_status = gr.Markdown(
-            value="",
-            label="🔧 Tool Activity",
-            visible=False
-        )
+            gr.Markdown(f"**Status:** {client.get_connection_status()}")
         
         # Main chat interface
         chatbot = gr.Chatbot(
-            value=[],
-            label="💬 Chat with League Assistant",
-            height=500,
-            show_label=True,
-            type="messages"
+            type="messages", 
+            height=600, 
+            show_copy_button=True,
+            placeholder="Start chatting with the League assistant..."
         )
         
         msg = gr.Textbox(
             placeholder="Ask about League players, matches, rankings... (e.g., 'look up Faker T1')",
-            label="🎯 Your Question",
-            lines=2
+            label="Your Question",
+            lines=2,
+            scale=4
         )
         
         with gr.Row():
-            submit_btn = gr.Button("🚀 Send", variant="primary", size="lg")
-            clear_btn = gr.Button("🗑️ Clear Chat", variant="secondary")
-        
-        # Example queries
-        gr.Markdown("""
-        ### 💡 Example Queries
-        
-        **Player Information:**
-        - "Look up Faker T1"
-        - "Get account info for Doublelift NA1"
-        - "What region is [PUUID] playing in?"
-        
-        **Match Data:**
-        - "Get recent matches for [PUUID]"
-        - "Show match details for [match-id]"
-        - "Get match timeline for [match-id]"
-        
-        **Rankings:**
-        - "Show challenger league for ranked solo queue"
-        - "Get grandmaster players in Korea"
-        - "Display master tier in EUW"
-        
-        **Live Games:**
-        - "Is [PUUID] currently in a game?"
-        - "Show featured games in NA"
-        """)
+            submit_btn = gr.Button("🚀 Send", variant="primary")
+            clear_btn = gr.Button("🗑️ Clear", variant="secondary")
         
         # Event handlers
-        def submit_message(message, history):
-            history, _ = client.chat_response(message, history)
-            return history, ""
-        
-        def clear_chat():
-            return []
-        
-        def update_status():
-            return client.get_connection_status()
-        
-        def update_tool_status():
-            updates = client.get_status_updates()
-            if updates:
-                return gr.update(value=updates, visible=True)
-            return gr.update(visible=False)
-        
-        # Set up interactions
-        msg.submit(submit_message, [msg, chatbot], [chatbot, msg])
-        submit_btn.click(submit_message, [msg, chatbot], [chatbot, msg])
-        clear_btn.click(clear_chat, outputs=[chatbot])
-        refresh_btn.click(update_status, outputs=[status_display])
-        
-        # Note: Auto-refresh removed due to compatibility issues
-        # Use the refresh button to update status manually
+        msg.submit(respond, [chatbot, msg], [chatbot, msg])
+        submit_btn.click(respond, [chatbot, msg], [chatbot, msg])
+        clear_btn.click(lambda: [], outputs=[chatbot])
+        chatbot.like(like_handler)
     
     return interface
 
