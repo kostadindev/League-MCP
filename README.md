@@ -1,5 +1,10 @@
 # League Model Context Protocol (MCP)
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![GitHub stars](https://img.shields.io/github/stars/yourusername/League-MCP?style=social)](https://github.com/yourusername/League-MCP/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/yourusername/League-MCP?style=social)](https://github.com/yourusername/League-MCP/network)
+
 A Model Context Protocol (MCP) server for League of Legends exposing all Riot Games APIs, static resources (champions, items, tiers, etc.), and workflow prompts. Includes a MCP client with a chatbot UI to demonstrate it's utility made using a ReAct agent for tool/resource/prompt calls. You can build your own client or use Claude for Desktop.
 
 ## MCP Server Features
