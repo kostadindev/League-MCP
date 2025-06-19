@@ -4,6 +4,9 @@ import sys
 import logging
 from typing import Optional
 from pathlib import Path
+import gradio as gr
+import threading
+import queue
 
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_core.messages import HumanMessage
@@ -21,23 +24,38 @@ logger = logging.getLogger(__name__)
 class ToolCallLogger(BaseCallbackHandler):
     """Custom callback handler to log tool calls"""
     
+    def __init__(self, status_queue: Optional[queue.Queue] = None):
+        super().__init__()
+        self.status_queue = status_queue
+    
     def on_tool_start(self, serialized: dict, input_str: str, **kwargs) -> None:
         """Log when a tool starts executing"""
         tool_name = serialized.get("name", "Unknown")
-        print(f"\n🔧 TOOL CALL START: {tool_name}")
-        print(f"📋 Tool Input: {input_str}")
+        status_msg = f"🔧 **Tool Call:** {tool_name}\n📋 **Input:** {input_str}"
+        
+        if self.status_queue:
+            self.status_queue.put(("tool_start", status_msg))
+        
         logger.info(f"Tool started: {tool_name} with input: {input_str}")
     
     def on_tool_end(self, output: str, **kwargs) -> None:
         """Log when a tool finishes executing"""
-        print(f"✅ TOOL CALL RESULT:")
-        print(f"📤 Output: {output}")
-        print(f"{'='*50}")
+        # Truncate output for display
+        display_output = output[:500] + "..." if len(output) > 500 else output
+        status_msg = f"✅ **Tool Result:**\n📤 {display_output}"
+        
+        if self.status_queue:
+            self.status_queue.put(("tool_end", status_msg))
+            
         logger.info(f"Tool completed with output: {output[:200]}...")
     
     def on_tool_error(self, error: Exception, **kwargs) -> None:
         """Log when a tool encounters an error"""
-        print(f"❌ TOOL CALL ERROR: {error}")
+        status_msg = f"❌ **Tool Error:** {error}"
+        
+        if self.status_queue:
+            self.status_queue.put(("tool_error", status_msg))
+            
         logger.error(f"Tool error: {error}")
 
 class LeagueMCPClient:
@@ -46,6 +64,13 @@ class LeagueMCPClient:
         self.mcp_client: Optional[MultiServerMCPClient] = None
         self.agent = None
         self.tools = []
+        self.is_connected = False
+        self.status_queue = queue.Queue()
+        
+        # Event loop management
+        self.loop = None
+        self.loop_thread = None
+        self.loop_ready = threading.Event()
         
         # Initialize LangChain model with Google Gemini
         google_api_key = os.getenv('GOOGLE_API_KEY')
@@ -59,7 +84,7 @@ class LeagueMCPClient:
         )
         
         # Initialize callback handler for tool logging
-        self.callback_handler = ToolCallLogger()
+        self.callback_handler = ToolCallLogger(self.status_queue)
         
         logger.info("LeagueMCPClient initialized with LangChain and Google Gemini")
     
@@ -76,8 +101,9 @@ class LeagueMCPClient:
             
             # Run the agent with callback for tool logging
             logger.info("Running LangChain ReAct agent with Google Gemini...")
-            print(f"\n🤖 AGENT PROCESSING: {query}")
-            print(f"{'='*60}")
+            
+            # Signal that processing started
+            self.status_queue.put(("processing_start", f"🤖 **Processing:** {query}"))
             
             result = await self.agent.ainvoke(
                 {"messages": input_messages},
@@ -91,9 +117,8 @@ class LeagueMCPClient:
                 response = final_message.content if hasattr(final_message, 'content') else str(final_message)
                 logger.info("✅ Agent processing completed successfully")
                 
-                print(f"\n🎯 FINAL AGENT RESPONSE:")
-                print(f"📝 Response: {response}")
-                print(f"{'='*60}")
+                # Signal that processing completed
+                self.status_queue.put(("processing_end", "✅ **Processing completed**"))
                 
                 return response
             else:
@@ -102,8 +127,29 @@ class LeagueMCPClient:
         except Exception as e:
             error_msg = f"Error processing query with agent: {str(e)}"
             logger.error(error_msg)
-            print(f"\n❌ AGENT ERROR: {error_msg}")
+            self.status_queue.put(("error", f"❌ **Error:** {error_msg}"))
             return error_msg
+
+    def _start_event_loop(self):
+        """Start the event loop in a background thread"""
+        def run_loop():
+            self.loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self.loop)
+            self.loop_ready.set()
+            self.loop.run_forever()
+        
+        self.loop_thread = threading.Thread(target=run_loop, daemon=True)
+        self.loop_thread.start()
+        self.loop_ready.wait()  # Wait for the loop to be ready
+        logger.info("Background event loop started")
+
+    def _run_in_loop(self, coro):
+        """Run a coroutine in the background event loop"""
+        if not self.loop:
+            raise RuntimeError("Event loop not started")
+        
+        future = asyncio.run_coroutine_threadsafe(coro, self.loop)
+        return future.result()
 
     async def connect_to_server(self, server_script_path: str):
         """Connect to the League MCP server and initialize the LangChain agent
@@ -124,7 +170,6 @@ class LeagueMCPClient:
 
         # Create MCP client configuration
         logger.info("Setting up MCP client with langchain-mcp-adapters...")
-        print(f"🔗 Setting up MCP connection to: {server_path}")
         
         self.mcp_client = MultiServerMCPClient(
             {
@@ -138,20 +183,9 @@ class LeagueMCPClient:
         
         # Get tools from MCP server
         logger.info("Getting tools from MCP server...")
-        print("📡 Retrieving tools from MCP server...")
         
         self.tools = await self.mcp_client.get_tools()
         logger.info(f"✅ Retrieved {len(self.tools)} tools from MCP server")
-        
-        # Log all available tools with their schemas
-        print(f"\n🛠️  AVAILABLE TOOLS ({len(self.tools)}):")
-        for i, tool in enumerate(self.tools, 1):
-            print(f"  {i}. {tool.name}")
-            print(f"     Description: {tool.description}")
-            if hasattr(tool, 'args_schema') and tool.args_schema:
-                schema = tool.args_schema.schema() if hasattr(tool.args_schema, 'schema') else str(tool.args_schema)
-                print(f"     Schema: {schema}")
-            print()
         
         # Create the ReAct agent
         logger.info("Creating LangChain ReAct agent with Google Gemini...")
@@ -211,69 +245,240 @@ DO NOT generate Python code, print statements, or fake data. USE THE ACTUAL TOOL
         tool_names = [tool.name for tool in self.tools]
         logger.info(f"Connected with {len(self.tools)} available tools: {tool_names}")
         
-        print(f"\n🎮 Connected to League MCP Server!")
-        print(f"🛠️  Available League API tools: {tool_names}")
-        print(f"🤖 Using LangChain ReAct Agent with Google Gemini ({self.model.model})")
-        print(f"🔍 Debug mode enabled - tool calls will be logged")
-        print("\n💡 Example queries:")
-        print("- 'look up Faker T1'")
-        print("- 'get account for PUUID [your-puuid]'")
-        print("- 'what region is [puuid] playing LoL in?'")
-        print("- 'get VALORANT shard for [puuid]'")
+        self.is_connected = True
 
-    async def chat_loop(self):
-        """Run an interactive chat loop for League queries"""
-        print("\n🚀 League MCP Client Started!")
-        print("🎯 Ask about League accounts, player info, or Riot IDs.")
-        print("💬 Type 'quit' to exit.\n")
-
-        while True:
+    def get_connection_status(self):
+        """Get the current connection status and available tools"""
+        if not self.is_connected:
+            return "❌ **Not Connected** - Please connect to MCP server first"
+        
+        tool_names = [tool.name for tool in self.tools]
+        return f"✅ **Connected** - {len(self.tools)} tools available: {', '.join(tool_names[:5])}{'...' if len(tool_names) > 5 else ''}"
+    
+    def _start_event_loop(self):
+        """Start the event loop in a background thread"""
+        def run_loop():
+            self.loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self.loop)
+            self.loop_ready.set()
+            self.loop.run_forever()
+        
+        self.loop_thread = threading.Thread(target=run_loop, daemon=True)
+        self.loop_thread.start()
+        self.loop_ready.wait()  # Wait for loop to be ready
+    
+    def _run_in_loop(self, coro):
+        """Run a coroutine in the background event loop"""
+        if not self.loop:
+            raise RuntimeError("Event loop not started")
+        
+        future = asyncio.run_coroutine_threadsafe(coro, self.loop)
+        return future.result()
+    
+    def chat_response(self, message, history):
+        """Process chat message and return response (sync wrapper for async)"""
+        if not message.strip():
+            return history, ""
+        
+        if not self.is_connected:
+            response = "❌ Not connected to MCP server. Please check connection."
+            history.append({"role": "user", "content": message})
+            history.append({"role": "assistant", "content": response})
+            return history, ""
+        
+        try:
+            # Run in the persistent event loop
+            response = self._run_in_loop(self.process_query(message))
+            history.append({"role": "user", "content": message})
+            history.append({"role": "assistant", "content": response})
+        except Exception as e:
+            error_msg = f"Error processing query: {str(e)}"
+            logger.error(error_msg)
+            history.append({"role": "user", "content": message})
+            history.append({"role": "assistant", "content": f"❌ {error_msg}"})
+        
+        return history, ""
+    
+    def get_status_updates(self):
+        """Get status updates from the queue"""
+        updates = []
+        while not self.status_queue.empty():
             try:
-                query = input("🎮 League Query: ").strip()
-
-                if query.lower() == 'quit':
-                    logger.info("User requested to quit")
-                    break
-
-                if not query:
-                    continue
-
-                logger.info(f"New user query received: {query}")
-                response = await self.process_query(query)
-                print(f"\n📊 Final Result:\n{response}\n")
-                print(f"{'='*80}\n")
-
-            except KeyboardInterrupt:
-                print("\n👋 Exiting...")
-                logger.info("Received keyboard interrupt, exiting")
+                status_type, message = self.status_queue.get_nowait()
+                updates.append(f"{message}")
+            except queue.Empty:
                 break
-            except Exception as e:
-                error_msg = f"Error: {str(e)}"
-                print(f"\n❌ {error_msg}")
-                logger.error(error_msg)
+        return "\n\n".join(updates) if updates else ""
 
     async def cleanup(self):
         """Clean up resources"""
         logger.info("Cleaning up resources...")
         if self.mcp_client:
             try:
-                await self.mcp_client.close()
+                # MultiServerMCPClient doesn't have a close method, so we'll just clean up references
+                self.mcp_client = None
+                logger.info("MCP client cleaned up successfully")
             except Exception as e:
-                logger.warning(f"Error closing MCP client: {e}")
+                logger.warning(f"Error cleaning up MCP client: {e}")
+        
+        # Stop the event loop
+        if self.loop:
+            self.loop.call_soon_threadsafe(self.loop.stop)
+            if self.loop_thread:
+                self.loop_thread.join(timeout=5)
+            logger.info("Event loop cleaned up successfully")
 
 
-async def main():
+def create_gradio_interface(client: LeagueMCPClient):
+    """Create and configure the Gradio interface"""
+    
+    with gr.Blocks(
+        title="League of Legends MCP Client",
+        theme=gr.themes.Soft(),
+        css="""
+        .gradio-container {
+            max-width: 1200px !important;
+        }
+        .status-box {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin: 0.5rem 0;
+        }
+        """
+    ) as interface:
+        
+        gr.Markdown("""
+        # 🎮 League of Legends MCP Client
+        
+        **AI-powered League of Legends assistant with access to Riot Games API**
+        
+        Ask about players, matches, rankings, and more using natural language!
+        """)
+        
+        # Connection status
+        with gr.Row():
+            status_display = gr.Markdown(
+                value=client.get_connection_status(),
+                elem_classes=["status-box"]
+            )
+            refresh_btn = gr.Button("🔄 Refresh Status", size="sm")
+        
+        # Tool status updates
+        tool_status = gr.Markdown(
+            value="",
+            label="🔧 Tool Activity",
+            visible=False
+        )
+        
+        # Main chat interface
+        chatbot = gr.Chatbot(
+            value=[],
+            label="💬 Chat with League Assistant",
+            height=500,
+            show_label=True,
+            type="messages"
+        )
+        
+        msg = gr.Textbox(
+            placeholder="Ask about League players, matches, rankings... (e.g., 'look up Faker T1')",
+            label="🎯 Your Question",
+            lines=2
+        )
+        
+        with gr.Row():
+            submit_btn = gr.Button("🚀 Send", variant="primary", size="lg")
+            clear_btn = gr.Button("🗑️ Clear Chat", variant="secondary")
+        
+        # Example queries
+        gr.Markdown("""
+        ### 💡 Example Queries
+        
+        **Player Information:**
+        - "Look up Faker T1"
+        - "Get account info for Doublelift NA1"
+        - "What region is [PUUID] playing in?"
+        
+        **Match Data:**
+        - "Get recent matches for [PUUID]"
+        - "Show match details for [match-id]"
+        - "Get match timeline for [match-id]"
+        
+        **Rankings:**
+        - "Show challenger league for ranked solo queue"
+        - "Get grandmaster players in Korea"
+        - "Display master tier in EUW"
+        
+        **Live Games:**
+        - "Is [PUUID] currently in a game?"
+        - "Show featured games in NA"
+        """)
+        
+        # Event handlers
+        def submit_message(message, history):
+            history, _ = client.chat_response(message, history)
+            return history, ""
+        
+        def clear_chat():
+            return []
+        
+        def update_status():
+            return client.get_connection_status()
+        
+        def update_tool_status():
+            updates = client.get_status_updates()
+            if updates:
+                return gr.update(value=updates, visible=True)
+            return gr.update(visible=False)
+        
+        # Set up interactions
+        msg.submit(submit_message, [msg, chatbot], [chatbot, msg])
+        submit_btn.click(submit_message, [msg, chatbot], [chatbot, msg])
+        clear_btn.click(clear_chat, outputs=[chatbot])
+        refresh_btn.click(update_status, outputs=[status_display])
+        
+        # Note: Auto-refresh removed due to compatibility issues
+        # Use the refresh button to update status manually
+    
+    return interface
+
+def main():
     if len(sys.argv) < 2:
         print("Usage: python client.py <path_to_league_server_script>")
         print("Example: python client.py ../mcp-server/main.py")
         sys.exit(1)
 
+    print("🚀 Initializing League MCP Client...")
     client = LeagueMCPClient()
+    
     try:
-        await client.connect_to_server(sys.argv[1])
-        await client.chat_loop()
+        # Start the persistent event loop
+        print("🔧 Starting event loop...")
+        client._start_event_loop()
+        
+        print("🔗 Connecting to MCP server...")
+        client._run_in_loop(client.connect_to_server(sys.argv[1]))
+        print("✅ Connected successfully!")
+        
+        # Create and launch Gradio interface
+        print("🌐 Launching Gradio interface...")
+        interface = create_gradio_interface(client)
+        
+        # Launch the interface
+        interface.launch(
+            server_name="127.0.0.1",
+            server_port=7860,
+            share=False,
+            inbrowser=True,
+            show_error=True
+        )
+        
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        logger.error(f"Startup error: {e}")
     finally:
-        await client.cleanup()
+        asyncio.run(client.cleanup())
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
