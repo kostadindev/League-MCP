@@ -64,9 +64,9 @@ https://github.com/user-attachments/assets/101ee6dc-af42-4bf0-81b0-3caba49c83a7
      ```env
      RIOT_API_KEY=your_riot_api_key
      ```
-   - In `mcp-client/.env`:
+   - In `mcp-client/.env` (only if you want to try out the client):
      ```env
-     GOOGLE_API_KEY=your_google_api_key
+     GOOGLE_API_KEY=your_gemini_api_key
      ```
 
 4. Run the MCP server independently:
