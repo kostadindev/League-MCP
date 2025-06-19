@@ -1,4 +1,4 @@
-# League Model Context Protocol (MCP)
+# League of Legends Model Context Protocol (MCP)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
@@ -24,8 +24,9 @@ https://github.com/user-attachments/assets/101ee6dc-af42-4bf0-81b0-3caba49c83a7
 
 1. Clone the repository:
    ```bash
-   git clone <this-repo-url>
-   cd League-MCP
+   git clone https://github.com/kostadindev/League-of-Legends-MCP.git
+   cd League-of-Legends-MCP
+Public
    ```
 
 2. Install dependencies (choose one method):
@@ -136,6 +137,8 @@ https://github.com/user-attachments/assets/101ee6dc-af42-4bf0-81b0-3caba49c83a7
 
 ## 🤝 Contributing
 
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details on how to get started.
+
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
@@ -143,7 +146,7 @@ https://github.com/user-attachments/assets/101ee6dc-af42-4bf0-81b0-3caba49c83a7
 
 ## 📄 License
 
-This project is licensed under the MIT License.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## ⚠️ Disclaimer
 
