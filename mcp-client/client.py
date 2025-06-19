@@ -261,8 +261,9 @@ EXAMPLE WORKFLOW for "get puuid of Sneaky#NA1 then get match details":
 - constants://ranked_tiers - Ranked tier information
 - constants://routing - Platform/regional routing
 
-3. PROMPTS - Workflow Templates (ask user to use these for complex workflows):
-- find_player_stats - Complete player analysis workflow
+3. PROMPTS - Workflow Templates:
+When users request prompts, you will receive detailed workflow instructions to follow step-by-step.
+- find_player_stats - Complete player analysis workflow  
 - tournament_setup - Tournament organization workflow
 - champion_analysis - Deep champion analysis workflow
 - team_composition_analysis - Team comp analysis workflow
@@ -274,9 +275,11 @@ IMPORTANT USAGE GUIDELINES:
 - User asks for "all champions", "champion list", "items", "queues" → Suggest ddragon:// or constants:// resources
 - User wants reference data, game constants, static information → Use resources directly
 
-**When to suggest Prompts:**
-- User wants "analysis of player X", "how to improve", "tournament setup" → Suggest prompts
-- User needs step-by-step workflows or complex analysis → Use prompts
+**When executing Prompts:**
+- Follow the provided workflow instructions exactly
+- Use the specified tools in the recommended order
+- Gather all required data before providing analysis
+- Present results in the structured format requested
 
 **Resource Access:**
 If a user types a resource URI directly (e.g., "ddragon://champions"), the system will automatically fetch it.
@@ -452,8 +455,8 @@ DO NOT generate Python code, print statements, or fake data. USE THE ACTUAL TOOL
                     server_name = "league"
                     history.append(ChatMessage(
                         role="assistant",
-                        content=f"🚀 Generating workflow prompt: {prompt_name}",
-                        metadata={"title": "📋 Using MCP Prompt"}
+                        content=f"🚀 Executing workflow: {prompt_name}",
+                        metadata={"title": "📋 Running MCP Workflow"}
                     ))
                     yield history
                     
@@ -467,12 +470,136 @@ DO NOT generate Python code, print statements, or fake data. USE THE ACTUAL TOOL
                                 game_name, tag_line = player_part.split('#', 1)
                                 kwargs['game_name'] = game_name.strip()
                                 kwargs['tag_line'] = tag_line.strip()
+                            elif prompt_name == 'champion_analysis':
+                                # For champion analysis, the part after "for" is the champion name
+                                kwargs['champion_name'] = player_part
+                            elif prompt_name == 'team_composition_analysis':
+                                # For team comp analysis, the part after "for" is the champions list
+                                kwargs['champions'] = player_part
+                            elif prompt_name == 'player_improvement':
+                                # For player improvement, extract more parameters
+                                # Look for patterns like "targeting Gold as ADC"
+                                if 'targeting ' in player_part:
+                                    targeting_part = player_part.split('targeting ')[1]
+                                    if ' as ' in targeting_part:
+                                        rank_part, role_part = targeting_part.split(' as ', 1)
+                                        kwargs['target_rank'] = rank_part.strip()
+                                        kwargs['current_role'] = role_part.strip()
+                                    else:
+                                        kwargs['target_rank'] = targeting_part.strip()
+                                # Extract game name and tag line if present
+                                if '#' in player_part.split(' targeting')[0]:
+                                    name_part = player_part.split(' targeting')[0]
+                                    game_name, tag_line = name_part.split('#', 1)
+                                    kwargs['game_name'] = game_name.strip()
+                                    kwargs['tag_line'] = tag_line.strip()
+                            elif prompt_name == 'tournament_setup':
+                                # For tournament setup, the part after "for" is the tournament name
+                                kwargs['tournament_name'] = player_part
                     
-                    content = self._run_in_loop(self.get_prompt_content(server_name, prompt_name, **kwargs))
-                    history.append(ChatMessage(
-                        role="assistant",
-                        content=content
-                    ))
+                    # Get the workflow prompt content
+                    workflow_instructions = self._run_in_loop(self.get_prompt_content(server_name, prompt_name, **kwargs))
+                    
+                    # Create an enhanced query that includes the workflow instructions
+                    enhanced_query = f"""
+Execute the following workflow for the user's request: "{query}"
+
+WORKFLOW INSTRUCTIONS:
+{workflow_instructions}
+
+Please follow these instructions step by step and use the available tools to gather the required data and provide a comprehensive analysis.
+"""
+                    
+                    # Clear the message queue before processing
+                    while not self.message_queue.empty():
+                        try:
+                            self.message_queue.get_nowait()
+                        except queue.Empty:
+                            break
+                    
+                    # Process the enhanced query with workflow instructions
+                    def run_workflow():
+                        # Pass the current history (excluding the workflow execution message)
+                        history_without_current = history[:-1] if history else []
+                        return self._run_in_loop(self.process_query_async(enhanced_query, history_without_current))
+                    
+                    # Start processing the workflow
+                    import threading
+                    result_container = {"result": None, "error": None}
+                    
+                    def workflow_thread():
+                        try:
+                            result_container["result"] = run_workflow()
+                        except Exception as e:
+                            result_container["error"] = str(e)
+                    
+                    thread = threading.Thread(target=workflow_thread)
+                    thread.start()
+                    
+                    # Monitor for tool calls while processing the workflow
+                    current_tool = None
+                    while thread.is_alive():
+                        try:
+                            # Check for tool messages
+                            message_type, *args = self.message_queue.get(timeout=0.1)
+                            
+                            if message_type == "tool_start":
+                                tool_name, input_str = args
+                                current_tool = tool_name
+                                # Truncate long inputs
+                                display_input = input_str[:200] + "..." if len(input_str) > 200 else input_str
+                                history.append(ChatMessage(
+                                    role="assistant",
+                                    content=f"Using {tool_name} tool with input: {display_input}",
+                                    metadata={"title": f"🔧 Calling tool '{tool_name}'"}
+                                ))
+                                yield history
+                            
+                            elif message_type == "tool_end":
+                                output = args[0]
+                                if current_tool:
+                                    # Truncate long outputs for display
+                                    display_output = output[:300] + "..." if len(output) > 300 else output
+                                    history.append(ChatMessage(
+                                        role="assistant",
+                                        content=f"Tool returned: {display_output}",
+                                        metadata={"title": f"🛠️ Used tool '{current_tool}'"}
+                                    ))
+                                    yield history
+                                    current_tool = None
+                            
+                            elif message_type == "tool_error":
+                                error = args[0]
+                                if current_tool:
+                                    history.append(ChatMessage(
+                                        role="assistant",
+                                        content=f"Tool error: {error}",
+                                        metadata={"title": f"💥 Error in tool '{current_tool}'"}
+                                    ))
+                                    yield history
+                                    current_tool = None
+                        
+                        except queue.Empty:
+                            continue
+                        except Exception as e:
+                            logger.error(f"Error processing tool message during workflow: {e}")
+                            continue
+                    
+                    # Wait for the workflow to complete
+                    thread.join()
+                    
+                    # Add the final workflow result
+                    if result_container["error"]:
+                        history.append(ChatMessage(
+                            role="assistant",
+                            content=f"❌ Workflow execution error: {result_container['error']}"
+                        ))
+                    else:
+                        history.append(ChatMessage(
+                            role="assistant",
+                            content=result_container["result"]
+                        ))
+                    
                     yield history
                     return
             
@@ -614,6 +741,12 @@ DO NOT generate Python code, print statements, or fake data. USE THE ACTUAL TOOL
             else:
                 error_msg = f"❌ Resource {resource_uri} not found or empty"
                 logger.warning(error_msg)
+                
+                # Check for common typos and suggest corrections
+                suggestions = self._get_resource_suggestions(resource_uri)
+                if suggestions:
+                    error_msg += f"\n\n💡 **Did you mean:**\n{suggestions}"
+                
                 return error_msg
                 
         except asyncio.TimeoutError:
@@ -624,9 +757,14 @@ DO NOT generate Python code, print statements, or fake data. USE THE ACTUAL TOOL
             error_msg = f"❌ Error reading resource {resource_uri}: {str(e)}"
             logger.error(error_msg)
             
+            # Check for common typos and suggest corrections
+            suggestions = self._get_resource_suggestions(resource_uri)
+            if suggestions:
+                error_msg += f"\n\n💡 **Did you mean:**\n{suggestions}"
+            
             # Provide helpful fallback information
             if "ddragon://" in resource_uri:
-                return f"""❌ Error accessing Data Dragon resource: {str(e)}
+                return f"""{error_msg}
 
 🔧 **Fallback Information:**
 This resource provides League of Legends static game data from Riot's Data Dragon service.
@@ -642,7 +780,7 @@ This resource provides League of Legends static game data from Riot's Data Drago
 ⚠️ **Note:** Data Dragon resources require internet connectivity to fetch live data from Riot's CDN.
 """
             elif "constants://" in resource_uri:
-                return f"""❌ Error accessing game constants: {str(e)}
+                return f"""{error_msg}
 
 🔧 **Fallback Information:**
 This resource provides League of Legends game constants and reference data.
@@ -660,6 +798,32 @@ This resource provides League of Legends game constants and reference data.
 """
             else:
                 return error_msg
+
+    def _get_resource_suggestions(self, resource_uri: str) -> str:
+        """Get suggestions for common resource name typos"""
+        suggestions = []
+        
+        # Common typos and corrections
+        if "ranked_tier" in resource_uri and "ranked_tiers" not in resource_uri:
+            corrected = resource_uri.replace("ranked_tier", "ranked_tiers")
+            suggestions.append(f"- `{corrected}` (plural form)")
+        
+        if "champion:" in resource_uri:
+            corrected = resource_uri.replace("champion:", "champion_data")
+            suggestions.append(f"- `{corrected}` (use champion_data for detailed info)")
+        
+        if "queue:" in resource_uri:
+            corrected = resource_uri.replace("queue:", "queues")
+            suggestions.append(f"- `{corrected}` (use queues for all queue types)")
+        
+        # Check for missing protocol
+        if not "://" in resource_uri:
+            if any(word in resource_uri.lower() for word in ["champion", "item", "spell"]):
+                suggestions.append(f"- `ddragon://{resource_uri}` (add ddragon protocol)")
+            elif any(word in resource_uri.lower() for word in ["queue", "map", "mode", "tier", "season"]):
+                suggestions.append(f"- `constants://{resource_uri}` (add constants protocol)")
+        
+        return "\n".join(suggestions) if suggestions else ""
 
     async def get_prompt_content(self, server_name: str, prompt_name: str, **kwargs) -> str:
         """Get content from an MCP prompt with arguments"""
@@ -751,18 +915,18 @@ def create_gradio_interface(client: LeagueMCPClient):
                 
                 ### 💡 Example Queries:
                 
-                **🔧 Tool-based Queries (API Data):**
+                **🔧 Tool-based Queries:**
                 - "What lane and against who did Sneaky#NA69 play in the last match?"
                 - "What is the current rank of Sneaky#NA69?"
                 - "What champions did Sneaky#NA69 play in the last 3 matches?"
                 
-                **📚 Resource Queries (Static Data):**
+                **📚 Resource Queries:**
                 - "Show me ddragon://champions" - Get all champions summary
                 - "Get ddragon://items" - View complete items database
                 - "Show constants://ranked_tiers" - Ranking system details
                 
-                **🚀 Prompt Workflows (Complex Analysis):**
-                - "Use find_player_stats for Sneaky#NA69" - Complete player analysis
+                **🚀 Workflow Execution:**
+                - "Use find_player_stats for Sneaky#NA69" - Execute complete player analysis
                 """)
                 
                 # Connection status
