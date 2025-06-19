@@ -10,7 +10,7 @@ import threading
 import queue
 
 from langchain_mcp_adapters.client import MultiServerMCPClient
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.prebuilt import create_react_agent
@@ -82,7 +82,7 @@ class LeagueMCPClient:
         
         logger.info("LeagueMCPClient initialized with LangChain and Google Gemini")
     
-    async def process_query_async(self, query: str) -> str:
+    async def process_query_async(self, query: str, history: List[ChatMessage] = None) -> str:
         """Process a League-related query using LangChain ReAct agent with Gemini"""
         logger.info(f"Processing user query: {query}")
         
@@ -90,12 +90,46 @@ class LeagueMCPClient:
             return "❌ Agent not initialized. Please connect to the MCP server first."
         
         try:
-            # Create the input for the agent
-            input_messages = [HumanMessage(content=query)]
+            # Convert Gradio ChatMessage history to LangChain messages
+            input_messages = []
+            
+            if history:
+                for msg in history:
+                    # Handle both ChatMessage objects and dictionaries
+                    if isinstance(msg, dict):
+                        role = msg.get('role', '')
+                        content = msg.get('content', '')
+                        metadata = msg.get('metadata', None)
+                    else:
+                        role = getattr(msg, 'role', '')
+                        content = getattr(msg, 'content', '')
+                        metadata = getattr(msg, 'metadata', None) if hasattr(msg, 'metadata') else None
+                    
+                    # Skip tool call messages (they have metadata) and system messages
+                    if metadata:
+                        continue
+                    if content.startswith("Let me help you with that League of Legends query"):
+                        continue
+                    if content.startswith("Using ") and "tool" in content:
+                        continue
+                    if content.startswith("Tool returned:"):
+                        continue
+                    if content.startswith("Tool error:"):
+                        continue
+                    
+                    # Convert to LangChain message format
+                    if role == "user":
+                        input_messages.append(HumanMessage(content=content))
+                    elif role == "assistant":
+                        input_messages.append(AIMessage(content=content))
+            
+            # Add the current query if it's not already the last message
+            if not input_messages or input_messages[-1].content != query:
+                input_messages.append(HumanMessage(content=query))
+            
+            logger.info(f"Sending {len(input_messages)} messages to agent (including conversation history)")
             
             # Run the agent with callback for tool logging
-            logger.info("Running LangChain ReAct agent with Google Gemini...")
-            
             result = await self.agent.ainvoke(
                 {"messages": input_messages},
                 config={"callbacks": [self.callback_handler]}
@@ -207,10 +241,12 @@ IMPORTANT PARAMETERS:
 - Platform regions: na1, euw1, eun1, kr, jp1, br1, la1, la2, oc1, tr1, ru (for game-specific tools)
 - Games: lol (League of Legends), tft (Teamfight Tactics), val (VALORANT), lor (Legends of Runeterra)
 
-EXAMPLE WORKFLOW for "get puuid of Sneaky#NA1 then get match ids":
+EXAMPLE WORKFLOW for "get puuid of Sneaky#NA1 then get match details":
 1. Call get_account_by_riot_id(game_name="Sneaky", tag_line="NA1", region="americas")
 2. Extract the puuid from the result
 3. Call get_match_ids_by_puuid(puuid=extracted_puuid, region="na1")
+4. Extract match id from the result
+5. Call get_match_details(match_id=extracted_match_id, region="na1")
 
 DO NOT generate Python code, print statements, or fake data. USE THE ACTUAL TOOLS."""
 
@@ -295,7 +331,9 @@ DO NOT generate Python code, print statements, or fake data. USE THE ACTUAL TOOL
             
             # Process the query in the background
             def run_query():
-                return self._run_in_loop(self.process_query_async(query))
+                # Pass the current history (excluding the new user message we just added)
+                history_without_current = history[:-1] if history else []
+                return self._run_in_loop(self.process_query_async(query, history_without_current))
             
             # Start processing
             import threading
@@ -423,7 +461,21 @@ def create_gradio_interface(client: LeagueMCPClient):
     
     with gr.Blocks(
         title="League of Legends MCP Client",
-        theme=gr.themes.Soft()
+        theme=gr.themes.Soft(),
+        css="""
+        .gradio-container {
+            min-height: 100vh !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: center !important;
+            align-items: center !important;
+            padding: 20px !important;
+        }
+        .main {
+            width: 100% !important;
+            max-width: 1400px !important;
+        }
+        """
     ) as interface:
         
         with gr.Row():
