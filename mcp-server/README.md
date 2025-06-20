@@ -2,7 +2,8 @@
 
 A Model Context Protocol server that provides LLMs comprehensive access to League of Legends game data through the Riot Games API. This server enables LLMs to retrieve player statistics, match history, champion information, tournament data, and much more. ⚡
 
-![ezgif-7fa704f63ad250](https://github.com/user-attachments/assets/6da6c5c2-dc71-4de0-9740-4c2da03cbb7f)
+![gradio-screen-recording-2025-06-19T06-47-43](https://github.com/user-attachments/assets/81ff5484-f747-431d-ac9c-c04933339b82)
+
 
 > **📋 Note**: This server requires a valid Riot Games API key. You can obtain one for free at [developer.riotgames.com](https://developer.riotgames.com/).
 
