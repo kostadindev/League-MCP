@@ -131,8 +131,7 @@ Public
 ## References
 
 - [Riot Games Developer Portal](https://developer.riotgames.com/)
-- [Model Context Protocol (MCP)](https://github.com/langchain-ai/mcp)
-- [LangChain](https://github.com/langchain-ai/langchain)
+- [Model Context Protocol (MCP)](https://modelcontextprotocol.io/)
 
 
 ## 🤝 Contributing
