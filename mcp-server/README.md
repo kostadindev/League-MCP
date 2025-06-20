@@ -82,6 +82,15 @@ A Model Context Protocol server that provides LLMs comprehensive access to Leagu
 
 ## Installation 📦
 
+### Using Docker 🐳 (Recommended)
+```bash
+# Pull and run directly from Docker Hub
+docker run -i -e RIOT_API_KEY=your_api_key_here kostadindev/league-mcp:latest
+
+# For web integrations (SSE transport)
+docker run -p 8000:8000 -e RIOT_API_KEY=your_api_key_here kostadindev/league-mcp:latest league-mcp --transport sse
+```
+
 ### Using pip 🐍
 ```bash
 pip install league-mcp
@@ -103,6 +112,19 @@ league-mcp
 ```
 
 ## Configuration ⚙️
+
+#### Using Docker 🐳
+```json
+{
+  "mcpServers": {
+    "league-mcp": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "-e", "RIOT_API_KEY=your_riot_api_key_here", "kostadindev/league-mcp:latest"],
+      "env": {}
+    }
+  }
+}
+```
 
 #### Using pip installation 🐍
 ```json
@@ -162,6 +184,12 @@ RIOT_API_KEY=your_riot_api_key_here
 ## Debugging 🔍
 
 You can use the MCP inspector to debug the server. Make sure to set your Riot API key first:
+
+### For Docker:
+```bash
+# Run the inspector with Docker
+npx @modelcontextprotocol/inspector docker run -i --rm -e RIOT_API_KEY=your_api_key_here kostadindev/league-mcp:latest
+```
 
 ### For uvx installations:
 ```bash

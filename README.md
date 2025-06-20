@@ -2,6 +2,8 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![PyPI version](https://badge.fury.io/py/league-mcp.svg)](https://badge.fury.io/py/league-mcp)
+[![Docker Hub](https://img.shields.io/docker/pulls/kostadindev/league-mcp.svg)](https://hub.docker.com/r/kostadindev/league-mcp)
 
 A Model Context Protocol (MCP) server for League of Legends exposing all Riot Games APIs, static resources (champions, items, tiers, etc.), and workflow prompts. Includes a MCP client with a chatbot UI to demonstrate it's utility made using a ReAct agent for tool/resource/prompt calls. You can build your own client or use Claude for Desktop.
 
@@ -22,11 +24,50 @@ https://github.com/user-attachments/assets/101ee6dc-af42-4bf0-81b0-3caba49c83a7
 
 ## Quickstart
 
+### Option 1: Using Docker 🐳 (Recommended)
+
+Pull and run directly from Docker Hub:
+
+```bash
+# For stdio transport (Claude Desktop integration)
+docker run -i -e RIOT_API_KEY=your_api_key_here kostadindev/league-mcp:latest
+
+# For SSE transport (web integrations)
+docker run -p 8000:8000 -e RIOT_API_KEY=your_api_key_here kostadindev/league-mcp:latest league-mcp --transport sse
+```
+
+**Using Docker Compose:**
+```yaml
+version: '3.8'
+services:
+  league-mcp:
+    image: kostadindev/league-mcp:latest
+    environment:
+      - RIOT_API_KEY=${RIOT_API_KEY}
+    command: ["league-mcp", "--transport", "sse"]
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+```
+
+### Option 2: Install from PyPI
+
+Simply install the MCP server using pip:
+```bash
+pip install league-mcp
+```
+
+Then run the server:
+```bash
+league-mcp
+```
+
+### Option 3: Install from Source
+
 1. Clone the repository:
    ```bash
    git clone https://github.com/kostadindev/League-of-Legends-MCP.git
    cd League-of-Legends-MCP
-Public
    ```
 
 2. Install dependencies (choose one method):

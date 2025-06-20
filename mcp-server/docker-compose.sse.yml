@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  league-mcp:
+    build: .
+    image: league-mcp:latest
+    environment:
+      - RIOT_API_KEY=${RIOT_API_KEY}
+    command: ["league-mcp", "--transport", "sse"]
+    ports:
+      - "8000:8000"
+    restart: unless-stopped 
