@@ -1,15 +1,65 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "league-mcp"
-version = "0.1.0"
-description = "Add your description here"
+version = "0.1.1"
+description = "Model Context Protocol server for League of Legends game data via Riot Games API"
 readme = "README.md"
+license = { file = "LICENSE" }
+authors = [
+    { name = "League MCP Contributors" },
+]
+keywords = [
+    "league-of-legends",
+    "riot-games",
+    "mcp",
+    "model-context-protocol",
+    "api",
+    "gaming"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Games/Entertainment",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
 requires-python = ">=3.12"
 dependencies = [
     "httpx>=0.28.1",
     "mcp[cli]>=1.9.4",
+    "python-dotenv>=1.1.0",
+    "requests>=2.31.0",
 ]
 
-[tool.uv.workspace]
-members = [
-    "mcp-client",
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "mypy>=1.5.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/kostadindevLeague-of-Legends-MCP"
+Repository = "https://github.com/kostadindevLeague-of-Legends-MCP"
+Documentation = "https://github.com/kostadindevLeague-of-Legends-MCP/blob/main/README.md"
+Issues = "https://github.com/kostadindevLeague-of-Legends-MCP/issues"
+
+[project.scripts]
+league-mcp = "main:main"
+
+[tool.hatch.build]
+include = [
+    "*.py",
+    "primitives/**/*.py",
+    "services/**/*.py", 
+    "utils/**/*.py",
+    "LICENSE",
+    "README.md"
 ]

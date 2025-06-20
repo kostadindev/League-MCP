@@ -1,0 +1,8 @@
+include README.md
+include LICENSE
+include requirements.txt
+recursive-include primitives *.py
+recursive-include services *.py
+recursive-include utils *.py
+include main.py
+include __init__.py 

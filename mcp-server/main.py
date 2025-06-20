@@ -74,44 +74,30 @@ Transport Types:
     
     logger.info(f"Starting League MCP Server with {args.transport} transport...")
     
-    # Register all tools
-    logger.info("Registering Account API tools...")
+    # Register all tools    
     register_account_tools(mcp)
     
-    logger.info("Registering Summoner API tools...")
     register_summoner_tools(mcp)
     
-    logger.info("Registering Spectator API tools...")
     register_spectator_tools(mcp)
     
-    logger.info("Registering Champion API tools...")
     register_champion_tools(mcp)
     
-    logger.info("Registering Clash API tools...")
     register_clash_tools(mcp)
     
-    logger.info("Registering League API tools...")
     register_league_tools(mcp)
     
-    logger.info("Registering Status API tools...")
     register_status_tools(mcp)
     
-    logger.info("Registering Match API tools...")
     register_match_tools(mcp)
     
-    logger.info("Registering Challenges API tools...")
     register_challenges_tools(mcp)
     
-    logger.info("Registering Tournament API tools...")
     register_tournament_tools(mcp)
     
-    logger.info("Registering Data Dragon resources...")
     register_data_dragon_resources(mcp)
-    
-    logger.info("Registering Game Constants resources...")
     register_game_constants_resources(mcp)
     
-    logger.info("Registering workflow prompts...")
     register_workflow_prompts(mcp)
     
     logger.info("All tools, resources, and prompts registered successfully!")
