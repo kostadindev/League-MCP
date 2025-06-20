@@ -123,8 +123,26 @@ mcp-server/
    ```
 
 2. Run the server:
+
+   ### Transport Options
+   
+   The server supports two transport types for different integration scenarios:
+   
+   #### stdio (Default) - For the provided MCP client and Claude Desktop Integration
    ```bash
    python main.py
+   # or explicitly
+   python main.py --transport stdio
+   ```
+   
+   #### sse - For Web-Based Integrations  
+   ```bash
+   python main.py --transport sse
+   ```
+   
+   ### Command Line Help
+   ```bash
+   python main.py --help
    ```
 
 ## New Capabilities ⚡

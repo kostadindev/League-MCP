@@ -1,5 +1,26 @@
-"""Main entry point for the League MCP Server."""
+"""
+Main entry point for the League MCP Server.
 
+This server provides access to League of Legends game data through the Riot Games API
+via the Model Context Protocol (MCP). It supports multiple transport types for 
+different integration scenarios.
+
+Usage:
+    python main.py [--transport {stdio,sse}]
+
+Transport Types:
+    - stdio: Standard input/output transport (default)
+      Used for direct integration with MCP clients like Claude Desktop
+    - sse: Server-Sent Events transport 
+      Used for web-based integrations and HTTP connections
+
+Examples:
+    python main.py                    # Uses stdio transport (default)
+    python main.py --transport stdio  # Explicitly use stdio transport
+    python main.py --transport sse    # Use SSE transport for web integration
+"""
+
+import argparse
 import logging
 from mcp.server.fastmcp import FastMCP
 
@@ -26,8 +47,32 @@ logger = logging.getLogger(__name__)
 mcp = FastMCP("league")
 
 def main():
-    """Initialize and run the MCP server."""
-    logger.info("Starting League MCP Server...")
+    """
+    Initialize and run the MCP server.
+    
+    Parses command line arguments to determine transport type, registers all
+    League of Legends API tools, resources, and workflow prompts, then starts
+    the server with the specified transport.
+    """
+    # Parse command line arguments for transport selection
+    parser = argparse.ArgumentParser(
+        description='League MCP Server - Provides League of Legends data via MCP',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Transport Types:
+  stdio    Standard input/output (for Claude Desktop integration)
+  sse      Server-Sent Events (for web-based integrations)
+        """
+    )
+    parser.add_argument(
+        '--transport', 
+        choices=['stdio', 'sse'], 
+        default='stdio',
+        help='Transport type to use (default: stdio)'
+    )
+    args = parser.parse_args()
+    
+    logger.info(f"Starting League MCP Server with {args.transport} transport...")
     
     # Register all tools
     logger.info("Registering Account API tools...")
@@ -71,8 +116,9 @@ def main():
     
     logger.info("All tools, resources, and prompts registered successfully!")
     
-    # Run the server
-    mcp.run(transport='stdio')
+    # Run the server with the specified transport type
+    logger.info(f"Server starting on {args.transport} transport...")
+    mcp.run(transport=args.transport)
 
 if __name__ == "__main__":
     main() 
