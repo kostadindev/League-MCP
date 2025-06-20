@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "league-mcp"
-version = "0.1.1"
+version = "0.1.2"
 description = "Model Context Protocol server for League of Legends game data via Riot Games API"
 readme = "README.md"
 license = { file = "LICENSE" }
