@@ -35,22 +35,12 @@ Public
    - In `mcp-server/`:
      ```bash
      cd mcp-server
-     python -m venv .venv
-     # Windows:
-     .venv\Scripts\activate
-     # macOS/Linux:
-     # source .venv/bin/activate
      pip install -r requirements.txt
      cd ..
      ```
    - In `mcp-client/`:
      ```bash
      cd mcp-client
-     python -m venv .venv
-     # Windows:
-     .venv\Scripts\activate
-     # macOS/Linux:
-     # source .venv/bin/activate
      pip install -r requirements.txt
      cd ..
      ```
@@ -80,14 +70,14 @@ Public
 3. Set environment variables in `.env` files:
    - In `mcp-server/.env`:
      ```env
-     RIOT_API_KEY=your_riot_api_key
+     RIOT_API_KEY=your_riot_api_key // obtain for free from https://developer.riotgames.com/
      ```
    - In `mcp-client/.env` (only if you want to try out the client):
      ```env
-     GOOGLE_API_KEY=your_gemini_api_key
+     GOOGLE_API_KEY=your_gemini_api_key // obtain for free from https://aistudio.google.com/ 
      ```
 
-4. Run the MCP server independently:
+4. How to run the MCP server independently:
 
    **Using pip/python:**
    ```bash
